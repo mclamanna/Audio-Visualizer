@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dynamic Audio Spectrum Visualization 1</title>
+    <link href="css/style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="controls">
+      <div class="file-input">
+        <input type="file" id="audioFile" accept=".wav" />
+        <button id="playButton" disabled>Play</button>
+        <button id="stopButton" disabled>Stop</button>
+      </div>
+    </div>
+    <canvas id="canvas"></canvas>
+    <script src="js/audioEngine.js"></script>
+  </body>
+</html>
