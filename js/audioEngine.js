@@ -118,7 +118,7 @@ function animate() {
     const smoothedData1 = movingAverage(dataArray, 5); // Orange line
     const smoothedData2 = movingAverage(dataArray, 10); // Gray line
 
-    // Draw orange trend line
+    // Draw red trend line
     ctx.beginPath();
     for (let i = 0; i < bufferLength; i++) {
         const freq = i * (audioCtx.sampleRate / 2) / bufferLength;
@@ -128,8 +128,8 @@ function animate() {
             i === 0 || freqToX((i - 1) * (audioCtx.sampleRate / 2) / bufferLength) === null ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
     }
-    ctx.strokeStyle = 'orange';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 1;
     ctx.stroke();
 
     // Draw gray trend line
