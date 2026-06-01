@@ -1,9 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dynamic Audio Spectrum Visualization 1</title>
+    <link
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23111' width='100' height='100'/><line x1='10' y1='50' x2='90' y2='50' stroke='%23f00' stroke-width='2'/></svg>"
+      rel="icon"
+    />
     <link href="css/style.css" rel="stylesheet" />
   </head>
   <body>
@@ -11,7 +15,39 @@
       <div class="file-input">
         <input type="file" id="audioFile" accept=".wav" />
         <button id="playButton" disabled>Play</button>
-        <button id="stopButton" disabled>Stop</button>
+        <button id="stopButton">Stop</button>
+      </div>
+      <div class="export-section">
+        <div class="export-row">
+          <label for="videoFormat">Format:</label>
+          <select id="videoFormat">
+            <option value="mp4">MP4</option>
+            <option value="mov">MOV</option>
+          </select>
+        </div>
+        <div class="export-row">
+          <label for="videoResolution">Resolution:</label>
+          <select id="videoResolution">
+            <option value="1080x1080">1080 x 1080 (Square)</option>
+            <option value="1920x1080">1920 x 1080 (Full HD)</option>
+            <option value="1280x720">1280 x 720 (HD)</option>
+            <option value="2560x1440">2560 x 1440 (1440p)</option>
+            <option value="3840x2160">3840 x 2160 (4K)</option>
+          </select>
+        </div>
+        <div class="export-row">
+          <label for="videoQuality">Quality:</label>
+          <select id="videoQuality">
+            <option value="standard">Standard (5 Mbps)</option>
+            <option value="high">High (10 Mbps)</option>
+            <option value="ultra">Ultra (20 Mbps)</option>
+          </select>
+        </div>
+        <button id="startExport" disabled>Start Export</button>
+        <button id="stopExport" disabled style="display: none">
+          Stop & Download
+        </button>
+        <div id="exportStatus" class="export-status"></div>
       </div>
     </div>
     <canvas id="canvas"></canvas>
