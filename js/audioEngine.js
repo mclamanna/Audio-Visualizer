@@ -1,43 +1,31 @@
-// Audio context setup
+// =============================================
+// audioEngine.js - Final Version with Popping Fix + 320kbps AAC
+// =============================================
+
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let audioBuffer, source, analyser, dataArray, bufferLength;
+let audioBuffer = null;
+let source = null;
+let analyser = null;
+let dataArray = null;
+let bufferLength = 0;
+
 let isPlaying = false;
-
-// Video export variables
-let mediaRecorder;
-let recordedChunks = [];
-let canvasStream;
 let isExporting = false;
-let selectedVideoFormat = 'mp4';
-let selectedResolution = '1080x1080';
-let selectedQuality = 'high';
-let originalCanvasWidth, originalCanvasHeight;
-let exportCanvas, exportCtx;
 
-// Canvas setup
+let mediaRecorder = null;
+let recordedChunks = [];
+let exportCanvas = null;
+let exportCtx = null;
+
+// Main canvas (preview)
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: true });
 
-// Resize canvas dynamically
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-resizeCanvas();
-window.addEventListener('resize', resizeCanvas);
-
-// Frequency range for logarithmic scale
-const minFreq = 20;
-const maxFreq = 20000;
-const logMin = Math.log10(minFreq);
-const logMax = Math.log10(maxFreq);
-
-// Utility function to map values
+// ====================== UTILITIES ======================
 function map(value, inMin, inMax, outMin, outMax) {
     return (value - inMin) / (inMax - inMin) * (outMax - outMin) + outMin;
 }
 
-// Moving average for smoothing trend lines
 function movingAverage(data, windowSize) {
     const smoothed = new Array(data.length);
     for (let i = 0; i < data.length; i++) {
@@ -51,410 +39,29 @@ function movingAverage(data, windowSize) {
     return smoothed;
 }
 
-// Load audio file
-function loadAudio(file) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        audioCtx.decodeAudioData(e.target.result, function(buffer) {
-            audioBuffer = buffer;
-            document.getElementById('playButton').disabled = false;
-            document.getElementById('startExport').disabled = false;
-        }, function(error) {
-            console.error('Error decoding audio:', error);
-            alert('Failed to load audio file.');
-        });
-    };
-    reader.readAsArrayBuffer(file);
-}
-
-// Play audio and start visualization
-function playAudio() {
-    if (source) source.stop();
-    isPlaying = true;
-    source = audioCtx.createBufferSource();
-    source.buffer = audioBuffer;
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
-    bufferLength = analyser.frequencyBinCount;
-    dataArray = new Uint8Array(bufferLength);
-    source.connect(analyser);
-    analyser.connect(audioCtx.destination);
-    source.onended = () => {
-        isPlaying = false;
-    };
-    source.start();
-    animate();
-}
-
-// Stop audio and visualization
-function stopAudio() {
-    isPlaying = false;
-    if (source) {
-        try {
-            source.stop();
-        } catch (e) {
-            // Source may already be stopped
-        }
-        source = null;
-    }
-}
-
-// Initialize video export
-function startVideoExport() {
-    if (!audioBuffer) {
-        alert('Please load an audio file first.');
-        return;
-    }
-
-    isExporting = true;
-    recordedChunks = [];
-    
-    // Get export settings
-    selectedVideoFormat = document.getElementById('videoFormat')?.value || 'mp4';
-    selectedResolution = document.getElementById('videoResolution')?.value || '1080x1080';
-    selectedQuality = document.getElementById('videoQuality')?.value || 'high';
-    
-    // Parse resolution
-    const [width, height] = selectedResolution.split('x').map(Number);
-    
-    // Set up export canvas
-    originalCanvasWidth = canvas.width;
-    originalCanvasHeight = canvas.height;
-    
-    exportCanvas = document.createElement('canvas');
-    exportCanvas.width = width;
-    exportCanvas.height = height;
-    exportCtx = exportCanvas.getContext('2d');
-    
-    // Create canvas stream for video from export canvas
-    canvasStream = exportCanvas.captureStream(60); // 60 FPS
-    
-    // Play visualization audio through main context
-    if (source) source.stop();
-    source = audioCtx.createBufferSource();
-    source.buffer = audioBuffer;
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
-    bufferLength = analyser.frequencyBinCount;
-    dataArray = new Uint8Array(bufferLength);
-    source.connect(analyser);
-    analyser.connect(audioCtx.destination);
-    
-    // Try to get audio stream from the audio context
-    try {
-        if (audioCtx.createMediaStreamDestination) {
-            const mediaStreamDest = audioCtx.createMediaStreamDestination();
-            source.connect(mediaStreamDest);
-            const audioTracks = mediaStreamDest.stream.getAudioTracks();
-            for (let track of audioTracks) {
-                canvasStream.addTrack(track);
-            }
-        }
-    } catch (e) {
-        console.log('Note: Audio will play through speakers but may not be in video.');
-    }
-    
-    // Get bitrate based on quality
-    let videoBitsPerSecond;
-    switch (selectedQuality) {
-        case 'standard':
-            videoBitsPerSecond = 5000000; // 5 Mbps
-            break;
-        case 'ultra':
-            videoBitsPerSecond = 20000000; // 20 Mbps
-            break;
-        case 'high':
-        default:
-            videoBitsPerSecond = 10000000; // 10 Mbps
-            break;
-    }
-    
-    // Create media recorder with format-specific codec and quality
-    let options;
-    
-    if (selectedVideoFormat === 'mp4' || selectedVideoFormat === 'mov') {
-        // Try H.264 codec for MP4/MOV
-        options = { 
-            mimeType: 'video/mp4;codecs=h264',
-            videoBitsPerSecond: videoBitsPerSecond
-        };
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-            options = { 
-                mimeType: 'video/mp4',
-                videoBitsPerSecond: videoBitsPerSecond
-            };
-        }
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-            // Fallback to WebM if MP4 not supported
-            options = { 
-                mimeType: 'video/webm;codecs=vp9',
-                videoBitsPerSecond: videoBitsPerSecond
-            };
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                options = { 
-                    mimeType: 'video/webm;codecs=vp8',
-                    videoBitsPerSecond: videoBitsPerSecond
-                };
-            }
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                options = { 
-                    mimeType: 'video/webm',
-                    videoBitsPerSecond: videoBitsPerSecond
-                };
-            }
-        }
-    } else {
-        // WebM default
-        options = { 
-            mimeType: 'video/webm;codecs=vp9',
-            videoBitsPerSecond: videoBitsPerSecond
-        };
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-            options = { 
-                mimeType: 'video/webm;codecs=vp8',
-                videoBitsPerSecond: videoBitsPerSecond
-            };
-        }
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-            options = { 
-                mimeType: 'video/webm',
-                videoBitsPerSecond: videoBitsPerSecond
-            };
-        }
-    }
-    
-    mediaRecorder = new MediaRecorder(canvasStream, options);
-    mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-            recordedChunks.push(event.data);
-        }
-    };
-    
-    mediaRecorder.onstop = () => {
-        finializeVideoExport();
-    };
-    
-    mediaRecorder.start();
-    source.start();
-    isPlaying = true;
-    
-    // Update UI
-    document.getElementById('startExport').style.display = 'none';
-    document.getElementById('stopExport').style.display = 'block';
-    document.getElementById('startExport').disabled = true;
-    document.getElementById('playButton').disabled = true;
-    document.getElementById('exportStatus').textContent = 'Recording video...';
-    
-    // Start animation loop
-    animate();
-    
-    // Stop export when audio ends
-    source.onended = () => {
-        setTimeout(stopVideoExport, 500);
-    };
-}
-
-function stopVideoExport() {
-    if (!isExporting || !mediaRecorder) return;
-    
-    isExporting = false;
-    isPlaying = false;
-    
-    // Stop all sources
-    if (source) {
-        source.stop();
-        source = null;
-    }
-    
-    // Stop recording
-    mediaRecorder.stop();
-    
-    // Update UI
-    document.getElementById('exportStatus').textContent = 'Processing video...';
-}
-
-function finializeVideoExport() {
-    // Create blob from recorded chunks with appropriate MIME type
-    isPlaying = false;
-    let mimeType = 'video/webm';
-    let fileExtension = 'webm';
-    
-    if (selectedVideoFormat === 'mp4') {
-        mimeType = 'video/mp4';
-        fileExtension = 'mp4';
-    } else if (selectedVideoFormat === 'mov') {
-        mimeType = 'video/quicktime';
-        fileExtension = 'mov';
-    }
-    
-    const blob = new Blob(recordedChunks, { type: mimeType });
-    
-    // Create download link
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    link.download = `audio-visualization-${timestamp}.${fileExtension}`;
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    // Restore canvas dimensions
-    canvas.width = originalCanvasWidth;
-    canvas.height = originalCanvasHeight;
-    
-    // Reset UI
-    document.getElementById('startExport').style.display = 'block';
-    document.getElementById('stopExport').style.display = 'none';
-    document.getElementById('startExport').disabled = false;
-    document.getElementById('playButton').disabled = false;
-    document.getElementById('exportStatus').textContent = 'Video downloaded!';
-    
-    setTimeout(() => {
-        document.getElementById('exportStatus').textContent = '';
-    }, 3000);
-}
-
-// Event listeners
-document.getElementById('audioFile').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) loadAudio(file);
-});
-document.getElementById('playButton').addEventListener('click', playAudio);
-document.getElementById('stopButton').addEventListener('click', stopAudio);
-document.getElementById('startExport').addEventListener('click', startVideoExport);
-document.getElementById('stopExport').addEventListener('click', stopVideoExport);
-document.getElementById('videoFormat').addEventListener('change', function(e) {
-    selectedVideoFormat = e.target.value;
-});
-document.getElementById('videoResolution').addEventListener('change', function(e) {
-    selectedResolution = e.target.value;
-});
-document.getElementById('videoQuality').addEventListener('change', function(e) {
-    selectedQuality = e.target.value;
-});
-
-// Animation loop
-function animate() {
-    if (!isPlaying) return;
-    requestAnimationFrame(animate);
-    
-    if (!analyser) return;
-    analyser.getByteFrequencyData(dataArray);
-
-    // Choose rendering target: export canvas for high-res export, otherwise visible canvas
-    const exportIsReady = isExporting && exportCanvas && exportCtx;
-    const renderCanvas = exportIsReady ? exportCanvas : canvas;
-    const renderCtx = exportIsReady ? exportCtx : ctx;
-    const drawCanvas = renderCanvas;
-    const drawCtx = renderCtx;
-    
-    // Clear canvas with dark background
-    drawCtx.fillStyle = '#111';
-    drawCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
-
-    // Draw grid
-    drawGridToCanvas(drawCanvas, drawCtx);
-
-    // Draw rainbow-colored frequency dots
-    for (let i = 0; i < bufferLength; i++) {
-        const freq = i * (audioCtx.sampleRate / 2) / bufferLength;
-        const x = freqToX(freq, drawCanvas);
-        if (x !== null) {
-            const y = map(dataArray[i], 0, 255, drawCanvas.height, 0);
-            const hue = map(Math.log10(freq), logMin, logMax, 0, 300);
-            drawCtx.fillStyle = `hsl(${hue}, 100%, 50%)`;
-            drawCtx.beginPath();
-            drawCtx.arc(x, y, 2, 0, Math.PI * 2);
-            drawCtx.fill();
-        }
-    }
-
-    // Smooth data for trend lines
-    const smoothedData1 = movingAverage(dataArray, 5); // Orange line
-    const smoothedData2 = movingAverage(dataArray, 10); // Gray line
-
-    // Draw red trend line
-    drawCtx.beginPath();
-    for (let i = 0; i < bufferLength; i++) {
-        const freq = i * (audioCtx.sampleRate / 2) / bufferLength;
-        const x = freqToX(freq, drawCanvas);
-        if (x !== null) {
-            const y = map(smoothedData1[i], 0, 255, drawCanvas.height, 0);
-            i === 0 || freqToX((i - 1) * (audioCtx.sampleRate / 2) / bufferLength, drawCanvas) === null ? drawCtx.moveTo(x, y) : drawCtx.lineTo(x, y);
-        }
-    }
-    drawCtx.strokeStyle = 'red';
-    drawCtx.lineWidth = 1;
-    drawCtx.stroke();
-
-    // Draw gray trend line
-    drawCtx.beginPath();
-    for (let i = 0; i < bufferLength; i++) {
-        const freq = i * (audioCtx.sampleRate / 2) / bufferLength;
-        const x = freqToX(freq, drawCanvas);
-        if (x !== null) {
-            const y = map(smoothedData2[i], 0, 255, drawCanvas.height, 0);
-            i === 0 || freqToX((i - 1) * (audioCtx.sampleRate / 2) / bufferLength, drawCanvas) === null ? drawCtx.moveTo(x, y) : drawCtx.lineTo(x, y);
-        }
-    }
-    drawCtx.strokeStyle = 'gray';
-    drawCtx.lineWidth = 1;
-    drawCtx.strokeStyle = 'gray';
-    drawCtx.lineWidth = 1;
-    drawCtx.stroke();
-
-    // Draw peak markers on orange trend line
-    const peaks = [];
-    for (let i = 1; i < bufferLength - 1; i++) {
-        if (smoothedData1[i] > smoothedData1[i - 1] && smoothedData1[i] > smoothedData1[i + 1]) {
-            peaks.push({ index: i, value: smoothedData1[i] });
-        }
-    }
-    peaks.sort((a, b) => b.value - a.value);
-    const topPeaks = peaks.slice(0, 2);
-
-    drawCtx.strokeStyle = 'orange';
-    drawCtx.lineWidth = 2;
-    for (const peak of topPeaks) {
-        const freq = peak.index * (audioCtx.sampleRate / 2) / bufferLength;
-        const x = freqToX(freq, drawCanvas);
-        if (x !== null) {
-            const y = map(smoothedData1[peak.index], 0, 255, drawCanvas.height, 0);
-            drawCtx.beginPath();
-            drawCtx.arc(x, y, 5, 0, Math.PI * 2);
-            drawCtx.stroke();
-        }
-    }
-
-
-    // If exporting, copy the high-res render into the visible canvas (downscale for display)
-    if (exportIsReady) {
-        // keep export as source, draw into on-screen canvas for preview
-        ctx.imageSmoothingEnabled = false;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(renderCanvas, 0, 0, canvas.width, canvas.height);
-    }
-
-}
-
-// Convert frequency to x-position on logarithmic scale
-function freqToX(freq, targetCanvas = canvas) {
+function freqToX(freq, targetCanvas) {
+    const minFreq = 20, maxFreq = 20000;
+    const logMin = Math.log10(minFreq);
+    const logMax = Math.log10(maxFreq);
     if (freq < minFreq || freq > maxFreq) return null;
     const logFreq = Math.log10(freq);
     return targetCanvas.width * (logFreq - logMin) / (logMax - logMin);
 }
 
-// Draw grid and frequency labels
+// ====================== CANVAS SETUP ======================
+function resizeCanvas() {
+    canvas.width = Math.min(window.innerWidth * 0.95, 1280);
+    canvas.height = Math.min(window.innerHeight - 220, 720);
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ====================== DRAWING ======================
 function drawGridToCanvas(targetCanvas, targetCtx) {
     const labelFreqs = [20, 30, 40, 50, 60, 80, 100, 200, 300, 400, 600, 800, 1000, 2000, 3000, 4000, 6000, 8000, 10000, 20000];
-    targetCtx.strokeStyle = 'rgba(255,255,255,0.2)';
+    targetCtx.strokeStyle = 'rgba(255,255,255,0.15)';
     targetCtx.lineWidth = 1;
 
-    // Vertical grid lines and labels
     for (const freq of labelFreqs) {
         const x = freqToX(freq, targetCanvas);
         if (x !== null) {
@@ -462,17 +69,15 @@ function drawGridToCanvas(targetCanvas, targetCtx) {
             targetCtx.moveTo(x, 0);
             targetCtx.lineTo(x, targetCanvas.height);
             targetCtx.stroke();
-            targetCtx.fillStyle = 'white';
+            targetCtx.fillStyle = 'rgba(255,255,255,0.7)';
             targetCtx.textAlign = 'center';
-            targetCtx.font = '12px Arial';
-            targetCtx.fillText(freq < 1000 ? freq : (freq / 1000) + 'k', x, targetCanvas.height - 10);
+            targetCtx.font = '11px Arial';
+            targetCtx.fillText(freq < 1000 ? freq : (freq / 1000) + 'k', x, targetCanvas.height - 8);
         }
     }
 
-    // Horizontal grid lines
-    const numHorizontalLines = 5;
-    for (let i = 0; i <= numHorizontalLines; i++) {
-        const y = targetCanvas.height * (1 - i / numHorizontalLines);
+    for (let i = 0; i <= 6; i++) {
+        const y = targetCanvas.height * (i / 6);
         targetCtx.beginPath();
         targetCtx.moveTo(0, y);
         targetCtx.lineTo(targetCanvas.width, y);
@@ -480,7 +85,242 @@ function drawGridToCanvas(targetCanvas, targetCtx) {
     }
 }
 
-// Backward compatibility - call drawGridToCanvas with main canvas
-function drawGrid() {
-    drawGridToCanvas(canvas, ctx);
+// ====================== LOAD AUDIO ======================
+function loadAudio(file) {
+    if (!file) return;
+    const playBtn = document.getElementById('playButton');
+    const exportBtn = document.getElementById('startExport');
+    const status = document.getElementById('exportStatus');
+
+    playBtn.disabled = true;
+    exportBtn.disabled = true;
+    status.textContent = `Loading ${file.name}...`;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        audioCtx.decodeAudioData(e.target.result, buffer => {
+            audioBuffer = buffer;
+            playBtn.disabled = false;
+            exportBtn.disabled = false;
+            status.textContent = `✅ Loaded: ${file.name} — ${(buffer.duration / 60).toFixed(2)} min`;
+        }, err => {
+            console.error(err);
+            status.textContent = '❌ Decode failed';
+        });
+    };
+    reader.readAsArrayBuffer(file);
 }
+
+// ====================== PLAY AUDIO (with gain fix) ======================
+function playAudio() {
+    if (!audioBuffer) return;
+    if (source) source.stop();
+
+    source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.value = 0.95;   // prevents clipping
+
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+
+    source.connect(gainNode);
+    gainNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
+
+    source.start();
+    isPlaying = true;
+    animate();
+
+    source.onended = () => isPlaying = false;
+}
+
+function stopAudio() {
+    isPlaying = false;
+    if (source) {
+        try { source.stop(); } catch(e) {}
+        source = null;
+    }
+}
+
+// ====================== VIDEO EXPORT (Popping Fix + 320kbps) ======================
+async function startVideoExport() {
+    if (!audioBuffer) return alert('Load a .wav first');
+    if (isExporting) return;
+
+    isExporting = true;
+    recordedChunks = [];
+
+    try {
+        const [width, height] = document.getElementById('videoResolution').value.split('x').map(Number);
+        const quality = document.getElementById('videoQuality').value;
+
+        exportCanvas = document.createElement('canvas');
+        exportCanvas.width = width;
+        exportCanvas.height = height;
+        exportCtx = exportCanvas.getContext('2d', { alpha: false });
+
+        const canvasStream = exportCanvas.captureStream(30);
+
+        // === Improved Audio Chain (fixes most popping) ===
+        source = audioCtx.createBufferSource();
+        source.buffer = audioBuffer;
+
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.95;
+
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+
+        const audioDest = audioCtx.createMediaStreamDestination();
+
+        source.connect(gainNode);
+        gainNode.connect(analyser);
+        analyser.connect(audioCtx.destination);   // hear it
+        analyser.connect(audioDest);              // record it
+
+        const audioTrack = audioDest.stream.getAudioTracks()[0];
+        if (audioTrack) canvasStream.addTrack(audioTrack);
+
+        // Quality settings
+        const videoBitrate = quality === 'ultra' ? 20000000 : 
+                            quality === 'high'  ? 14000000 : 9000000;
+
+        let options = {
+            mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+            videoBitsPerSecond: videoBitrate,
+            audioBitsPerSecond: 320000
+        };
+
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            options.mimeType = 'video/mp4';
+        }
+
+        mediaRecorder = new MediaRecorder(canvasStream, options);
+
+        mediaRecorder.ondataavailable = e => {
+            if (e.data?.size > 0) recordedChunks.push(e.data);
+        };
+        mediaRecorder.onstop = finalizeVideoExport;
+
+        mediaRecorder.start(500);
+        await new Promise(r => setTimeout(r, 80)); // small stabilization delay
+        source.start(0);
+
+        isPlaying = true;
+
+        document.getElementById('startExport').style.display = 'none';
+        document.getElementById('stopExport').style.display = 'block';
+        document.getElementById('exportStatus').textContent = `Exporting ${width}×${height} — 320kbps AAC...`;
+
+        animate();
+        source.onended = () => setTimeout(stopVideoExport, 800);
+
+    } catch (err) {
+        console.error(err);
+        alert('Export error: ' + err.message);
+        isExporting = false;
+    }
+}
+
+function stopVideoExport() {
+    if (!isExporting) return;
+    isExporting = false;
+    isPlaying = false;
+    if (source) { try { source.stop(); } catch(e) {} source = null; }
+    if (mediaRecorder?.state !== 'inactive') mediaRecorder.stop();
+}
+
+function finalizeVideoExport() {
+    if (recordedChunks.length === 0) {
+        alert('No data recorded.');
+        resetUI();
+        return;
+    }
+
+    const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `visualizer-${Date.now()}.mp4`;
+    link.click();
+    URL.revokeObjectURL(url);
+    resetUI();
+}
+
+function resetUI() {
+    document.getElementById('startExport').style.display = 'block';
+    document.getElementById('stopExport').style.display = 'none';
+    document.getElementById('exportStatus').textContent = '✅ Export complete!';
+    setTimeout(() => document.getElementById('exportStatus').textContent = '', 4000);
+}
+
+// ====================== ANIMATION ======================
+function animate() {
+    if (!isPlaying) return;
+    requestAnimationFrame(animate);
+    if (!analyser) return;
+    analyser.getByteFrequencyData(dataArray);
+
+    const targetCanvas = isExporting ? exportCanvas : canvas;
+    const targetCtx = isExporting ? exportCtx : ctx;
+
+    targetCtx.fillStyle = '#111';
+    targetCtx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
+    drawGridToCanvas(targetCanvas, targetCtx);
+
+    // Rainbow dots
+    for (let i = 0; i < bufferLength; i++) {
+        const freq = i * (audioCtx.sampleRate / 2) / bufferLength;
+        const x = freqToX(freq, targetCanvas);
+        if (x !== null) {
+            const y = map(dataArray[i], 0, 255, targetCanvas.height, 0);
+            const hue = map(Math.log10(freq), 1.3, 4.3, 0, 300);
+            targetCtx.fillStyle = `hsl(${hue}, 100%, 55%)`;
+            targetCtx.beginPath();
+            targetCtx.arc(x, y, 2.5, 0, Math.PI * 2);
+            targetCtx.fill();
+        }
+    }
+
+    const s1 = movingAverage(dataArray, 4);
+    const s2 = movingAverage(dataArray, 12);
+
+    targetCtx.strokeStyle = '#ff3333'; targetCtx.lineWidth = 2;
+    targetCtx.beginPath();
+    for (let i = 0; i < bufferLength; i++) {
+        const freq = i * (audioCtx.sampleRate / 2) / bufferLength;
+        const x = freqToX(freq, targetCanvas);
+        if (x !== null) {
+            const y = map(s1[i], 0, 255, targetCanvas.height, 0);
+            i === 0 ? targetCtx.moveTo(x, y) : targetCtx.lineTo(x, y);
+        }
+    }
+    targetCtx.stroke();
+
+    targetCtx.strokeStyle = '#888'; targetCtx.lineWidth = 1.5;
+    targetCtx.beginPath();
+    for (let i = 0; i < bufferLength; i++) {
+        const freq = i * (audioCtx.sampleRate / 2) / bufferLength;
+        const x = freqToX(freq, targetCanvas);
+        if (x !== null) {
+            const y = map(s2[i], 0, 255, targetCanvas.height, 0);
+            i === 0 ? targetCtx.moveTo(x, y) : targetCtx.lineTo(x, y);
+        }
+    }
+    targetCtx.stroke();
+
+    if (isExporting) ctx.drawImage(exportCanvas, 0, 0, canvas.width, canvas.height);
+}
+
+// ====================== EVENT LISTENERS ======================
+document.getElementById('audioFile').addEventListener('change', e => e.target.files[0] && loadAudio(e.target.files[0]));
+document.getElementById('playButton').addEventListener('click', playAudio);
+document.getElementById('stopButton').addEventListener('click', stopAudio);
+document.getElementById('startExport').addEventListener('click', startVideoExport);
+document.getElementById('stopExport').addEventListener('click', stopVideoExport);
