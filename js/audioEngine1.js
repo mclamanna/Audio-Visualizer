@@ -1,5 +1,5 @@
 // =============================================
-// audioEngine.js - Final Version with Popping Fix + 320kbps AAC
+// audioEngine.js - With Instagram 1080x1350 Support
 // =============================================
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -85,7 +85,7 @@ function drawGridToCanvas(targetCanvas, targetCtx) {
     }
 }
 
-// ====================== LOAD AUDIO ======================
+// ====================== LOAD / PLAY / STOP ======================
 function loadAudio(file) {
     if (!file) return;
     const playBtn = document.getElementById('playButton');
@@ -111,7 +111,6 @@ function loadAudio(file) {
     reader.readAsArrayBuffer(file);
 }
 
-// ====================== PLAY AUDIO (with gain fix) ======================
 function playAudio() {
     if (!audioBuffer) return;
     if (source) source.stop();
@@ -120,7 +119,7 @@ function playAudio() {
     source.buffer = audioBuffer;
 
     const gainNode = audioCtx.createGain();
-    gainNode.gain.value = 0.95;   // prevents clipping
+    gainNode.gain.value = 0.95;
 
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2048;
@@ -140,13 +139,10 @@ function playAudio() {
 
 function stopAudio() {
     isPlaying = false;
-    if (source) {
-        try { source.stop(); } catch(e) {}
-        source = null;
-    }
+    if (source) { try { source.stop(); } catch(e){} source = null; }
 }
 
-// ====================== VIDEO EXPORT (Popping Fix + 320kbps) ======================
+// ====================== VIDEO EXPORT ======================
 async function startVideoExport() {
     if (!audioBuffer) return alert('Load a .wav first');
     if (isExporting) return;
@@ -165,7 +161,7 @@ async function startVideoExport() {
 
         const canvasStream = exportCanvas.captureStream(30);
 
-        // === Improved Audio Chain (fixes most popping) ===
+        // Audio chain (popping fix)
         source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
 
@@ -181,15 +177,13 @@ async function startVideoExport() {
 
         source.connect(gainNode);
         gainNode.connect(analyser);
-        analyser.connect(audioCtx.destination);   // hear it
-        analyser.connect(audioDest);              // record it
+        analyser.connect(audioCtx.destination);
+        analyser.connect(audioDest);
 
         const audioTrack = audioDest.stream.getAudioTracks()[0];
         if (audioTrack) canvasStream.addTrack(audioTrack);
 
-        // Quality settings
-        const videoBitrate = quality === 'ultra' ? 20000000 : 
-                            quality === 'high'  ? 14000000 : 9000000;
+        const videoBitrate = quality === 'ultra' ? 20000000 : quality === 'high' ? 14000000 : 9000000;
 
         let options = {
             mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
@@ -203,20 +197,18 @@ async function startVideoExport() {
 
         mediaRecorder = new MediaRecorder(canvasStream, options);
 
-        mediaRecorder.ondataavailable = e => {
-            if (e.data?.size > 0) recordedChunks.push(e.data);
-        };
+        mediaRecorder.ondataavailable = e => e.data?.size > 0 && recordedChunks.push(e.data);
         mediaRecorder.onstop = finalizeVideoExport;
 
         mediaRecorder.start(500);
-        await new Promise(r => setTimeout(r, 80)); // small stabilization delay
+        await new Promise(r => setTimeout(r, 80));
         source.start(0);
 
         isPlaying = true;
 
         document.getElementById('startExport').style.display = 'none';
         document.getElementById('stopExport').style.display = 'block';
-        document.getElementById('exportStatus').textContent = `Exporting ${width}×${height} — 320kbps AAC...`;
+        document.getElementById('exportStatus').textContent = `Exporting ${width}×${height} (Instagram Ready)...`;
 
         animate();
         source.onended = () => setTimeout(stopVideoExport, 800);
@@ -232,16 +224,12 @@ function stopVideoExport() {
     if (!isExporting) return;
     isExporting = false;
     isPlaying = false;
-    if (source) { try { source.stop(); } catch(e) {} source = null; }
+    if (source) { try { source.stop(); } catch(e){} source = null; }
     if (mediaRecorder?.state !== 'inactive') mediaRecorder.stop();
 }
 
 function finalizeVideoExport() {
-    if (recordedChunks.length === 0) {
-        alert('No data recorded.');
-        resetUI();
-        return;
-    }
+    if (recordedChunks.length === 0) return alert('No data recorded.');
 
     const blob = new Blob(recordedChunks, { type: 'video/mp4' });
     const url = URL.createObjectURL(blob);
@@ -274,7 +262,6 @@ function animate() {
     targetCtx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
     drawGridToCanvas(targetCanvas, targetCtx);
 
-    // Rainbow dots
     for (let i = 0; i < bufferLength; i++) {
         const freq = i * (audioCtx.sampleRate / 2) / bufferLength;
         const x = freqToX(freq, targetCanvas);
@@ -318,7 +305,7 @@ function animate() {
     if (isExporting) ctx.drawImage(exportCanvas, 0, 0, canvas.width, canvas.height);
 }
 
-// ====================== EVENT LISTENERS ======================
+// Event Listeners
 document.getElementById('audioFile').addEventListener('change', e => e.target.files[0] && loadAudio(e.target.files[0]));
 document.getElementById('playButton').addEventListener('click', playAudio);
 document.getElementById('stopButton').addEventListener('click', stopAudio);

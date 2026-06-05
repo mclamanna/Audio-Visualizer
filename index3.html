@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Radial Explosion Visualizer</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0a0a0a;
+        font-family: Arial, sans-serif;
+        color: #ddd;
+        overflow: hidden;
+      }
+      .controls {
+        padding: 15px 20px;
+        background: #111;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        align-items: center;
+        border-bottom: 1px solid #222;
+      }
+      canvas {
+        display: block;
+        margin: 20px auto;
+        background: #000;
+        box-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
+      }
+      button,
+      select,
+      input {
+        padding: 9px 14px;
+        font-size: 14px;
+        border: none;
+        border-radius: 4px;
+        background: #222;
+        color: #fff;
+      }
+      button:hover {
+        background: #444;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      #exportStatus {
+        margin-left: 10px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <div>
+        <input type="file" id="audioFile" accept="audio/*" />
+        <button id="playButton" disabled>Play</button>
+        <button id="stopButton">Stop</button>
+      </div>
+
+      <div class="export-section">
+        <select id="videoResolution">
+          <option value="1080x1080">1080×1080 Square</option>
+          <option value="1080x1350" selected>1080×1350 (Instagram)</option>
+          <option value="1920x1080">1920×1080 Full HD</option>
+          <option value="3840x2160">4K</option>
+        </select>
+
+        <select id="videoQuality">
+          <option value="standard">Standard</option>
+          <option value="high" selected>High</option>
+          <option value="ultra">Ultra</option>
+        </select>
+
+        <button id="startExport" disabled>Start Export</button>
+        <button id="stopExport" style="display: none">Stop & Download</button>
+        <div id="exportStatus"></div>
+      </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script src="js/audioEngine3.js"></script>
+  </body>
+</html>
