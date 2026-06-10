@@ -7,88 +7,153 @@
     <!-- Tailwind v4 CDN Browser Script Integration -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   </head>
-  <body class="m-0 bg-[#0a0a0a] font-sans text-[#e4e3e3] overflow-hidden">
+  <body
+    class="m-0 font-sans text-neutral-200 overflow-hidden h-screen w-screen flex flex-col items-center justify-center bg-gradient-to-b from-black to-slate-900 p-4 md:p-8"
+  >
+    <!-- Outer Centered Layout wrapper containing both sections proportionally -->
     <div
-      class="flex flex-wrap gap-5 items-center p-[15px 20px] bg-[#111] border-b border-[#222]"
+      class="flex flex-col items-center justify-center w-full max-w-4xl h-full max-h-[90vh] gap-6"
     >
-      <div>
-        <input
-          type="file"
-          id="audioFile"
-          accept="audio/*"
-          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white"
-        />
-        <button
-          id="playButton"
-          disabled
-          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white hover:bg-[#444] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Play
-        </button>
-        <button
-          id="stopButton"
-          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white hover:bg-[#444] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Stop
-        </button>
-      </div>
-
-      <div class="export-section flex items-center gap-3">
-        <select
-          id="videoResolution"
-          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white"
-        >
-          <option value="1080x1080">1080×1080 Square</option>
-          <option value="1080x1350" selected>1080×1350 (Instagram)</option>
-          <option value="1920x1080">1920×1080 Full HD</option>
-          <option value="3840x2160">4K</option>
-        </select>
-
-        <select
-          id="videoQuality"
-          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white"
-        >
-          <option value="standard">Standard</option>
-          <option value="high" selected>High</option>
-          <option value="ultra">Ultra</option>
-        </select>
-
-        <button
-          id="startExport"
-          disabled
-          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white hover:bg-[#444] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Start Export
-        </button>
-
-        <button
-          id="stopExport"
-          style="display: none"
-          class="px-[14px] py-[9px] text-sm border-none rounded bg-red-700 text-white hover:bg-red-600"
-        >
-          Stop Export
-        </button>
-
-        <span id="exportStatus" class="ml-2.5 font-bold"></span>
-      </div>
-
-      <div
-        id="progressContainer"
-        style="display: none"
-        class="w-48 bg-neutral-800 rounded-full h-2.5 overflow-hidden ml-auto"
+      <!-- Title Header -->
+      <h1
+        class="text-xl font-bold tracking-wider text-white text-center drop-shadow-md shrink-0"
       >
+        RADIAL EXPLOSION VISUALIZER
+      </h1>
+
+      <!-- Main Translucent Card Control Panel -->
+      <div
+        class="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 shadow-2xl w-full shrink-0"
+      >
+        <!-- Controls Grid Layout -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-end">
+          <!-- Left Column: Audio Upload & Action Playbacks -->
+          <div class="flex flex-col gap-3">
+            <div>
+              <label
+                for="audioFile"
+                class="block text-xs font-medium text-neutral-300 mb-1"
+              >
+                Upload Audio Track
+              </label>
+              <input
+                type="file"
+                id="audioFile"
+                accept="audio/*"
+                class="w-full file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-white hover:file:bg-neutral-700 cursor-pointer p-[4px] rounded-lg border border-neutral-700 bg-neutral-950 text-white text-xs"
+              />
+            </div>
+
+            <!-- Playback Button Control Rows -->
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                id="playButton"
+                disabled
+                class="w-full px-4 py-2 bg-slate-700 hover:bg-indigo-600 disabled:bg-neutral-800 text-white font-medium text-xs rounded-lg shadow-sm transition duration-200 focus:outline-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Play
+              </button>
+              <button
+                id="stopButton"
+                class="w-full px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-medium text-xs rounded-lg shadow-sm transition duration-200 focus:outline-none cursor-pointer"
+              >
+                Stop
+              </button>
+            </div>
+          </div>
+
+          <!-- Right Column: Configurations & Processing Buttons -->
+          <div class="flex flex-col gap-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label
+                  for="videoResolution"
+                  class="block text-xs font-medium text-neutral-300 mb-1"
+                >
+                  Resolution
+                </label>
+                <select
+                  id="videoResolution"
+                  class="w-full px-2.5 py-1.5 rounded-lg border border-neutral-700 bg-neutral-950 text-white text-xs focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="1080x1080">1080×1080 Square</option>
+                  <option value="1080x1350" selected>1080×1350 (IG)</option>
+                  <option value="1920x1080">1920×1080 Full HD</option>
+                  <option value="3840x2160">4K Ultra HD</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  for="videoQuality"
+                  class="block text-xs font-medium text-neutral-300 mb-1"
+                >
+                  Bitrate Quality
+                </label>
+                <select
+                  id="videoQuality"
+                  class="w-full px-2.5 py-1.5 rounded-lg border border-neutral-700 bg-neutral-950 text-white text-xs focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="standard">Standard</option>
+                  <option value="high" selected>High</option>
+                  <option value="ultra">Ultra 4K</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Export Initialization Row -->
+            <div>
+              <button
+                id="startExport"
+                disabled
+                class="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 text-white font-medium text-xs rounded-lg shadow-sm transition duration-200 focus:outline-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Start Render Export
+              </button>
+
+              <button
+                id="stopExport"
+                style="display: none"
+                class="w-full px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-medium text-xs rounded-lg shadow-sm transition duration-200 focus:outline-none cursor-pointer"
+              >
+                Cancel Export
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Tracking Section Elements -->
         <div
-          id="progressBar"
-          class="bg-blue-600 h-2.5 w-0 transition-[width] duration-100 ease-out"
-        ></div>
+          class="mt-4 pt-3 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3"
+        >
+          <span id="exportStatus" class="text-xs font-medium text-neutral-400">
+            Waiting for audio upload...
+          </span>
+
+          <div
+            id="progressContainer"
+            style="display: none"
+            class="w-full sm:w-64 bg-neutral-950 rounded-full h-2 overflow-hidden border border-neutral-800"
+          >
+            <div
+              id="progressBar"
+              class="bg-indigo-500 h-2 w-0 transition-[width] duration-100 ease-out shadow-[0_0_10px_rgba(99,102,241,0.5)]"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Realtime Render Display Mirror Canvas Target -->
+      <!-- FIX: Wrapped canvas sizing inside dynamic flexing rules so it expands nicely within the viewport center -->
+      <div class="flex-1 w-full flex items-center justify-center min-h-0">
+        <canvas
+          id="canvas"
+          class="max-w-full max-h-full bg-black rounded-xl shadow-[0 20px 50px rgba(0,0,0,0.7)] border border-white/5 object-contain"
+        ></canvas>
       </div>
     </div>
 
-    <canvas
-      id="canvas"
-      class="block my-5 mx-auto bg-black shadow-[0 0 40px rgba(0,0,0,0.9)]"
-    ></canvas>
-
+    <!-- Engine Logic Source Routing Initialization -->
     <script src="js/audioEngine3.js"></script>
   </body>
 </html>
