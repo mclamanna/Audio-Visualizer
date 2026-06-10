@@ -4,81 +4,90 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Radial Explosion Visualizer</title>
-    <style>
-      body {
-        margin: 0;
-        background: #0a0a0a;
-        font-family: Arial, sans-serif;
-        color: #e4e3e3;
-        overflow: hidden;
-      }
-      .controls {
-        padding: 15px 20px;
-        background: #111;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 20px;
-        align-items: center;
-        border-bottom: 1px solid #222;
-      }
-      canvas {
-        display: block;
-        margin: 20px auto;
-        background: #000;
-        box-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
-      }
-      button,
-      select,
-      input {
-        padding: 9px 14px;
-        font-size: 14px;
-        border: none;
-        border-radius: 4px;
-        background: #222;
-        color: #fff;
-      }
-      button:hover {
-        background: #444;
-      }
-      button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-      #exportStatus {
-        margin-left: 10px;
-        font-weight: bold;
-      }
-    </style>
+    <!-- Tailwind v4 CDN Browser Script Integration -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   </head>
-  <body>
-    <div class="controls">
+  <body class="m-0 bg-[#0a0a0a] font-sans text-[#e4e3e3] overflow-hidden">
+    <div
+      class="flex flex-wrap gap-5 items-center p-[15px 20px] bg-[#111] border-b border-[#222]"
+    >
       <div>
-        <input type="file" id="audioFile" accept="audio/*" />
-        <button id="playButton" disabled>Play</button>
-        <button id="stopButton">Stop</button>
+        <input
+          type="file"
+          id="audioFile"
+          accept="audio/*"
+          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white"
+        />
+        <button
+          id="playButton"
+          disabled
+          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white hover:bg-[#444] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Play
+        </button>
+        <button
+          id="stopButton"
+          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white hover:bg-[#444] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Stop
+        </button>
       </div>
 
-      <div class="export-section">
-        <select id="videoResolution">
+      <div class="export-section flex items-center gap-3">
+        <select
+          id="videoResolution"
+          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white"
+        >
           <option value="1080x1080">1080×1080 Square</option>
           <option value="1080x1350" selected>1080×1350 (Instagram)</option>
           <option value="1920x1080">1920×1080 Full HD</option>
           <option value="3840x2160">4K</option>
         </select>
 
-        <select id="videoQuality">
+        <select
+          id="videoQuality"
+          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white"
+        >
           <option value="standard">Standard</option>
           <option value="high" selected>High</option>
           <option value="ultra">Ultra</option>
         </select>
 
-        <button id="startExport" disabled>Start Export</button>
-        <button id="stopExport" style="display: none">Stop & Download</button>
-        <div id="exportStatus"></div>
+        <button
+          id="startExport"
+          disabled
+          class="px-[14px] py-[9px] text-sm border-none rounded bg-[#222] text-white hover:bg-[#444] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Start Export
+        </button>
+
+        <button
+          id="stopExport"
+          style="display: none"
+          class="px-[14px] py-[9px] text-sm border-none rounded bg-red-700 text-white hover:bg-red-600"
+        >
+          Stop Export
+        </button>
+
+        <span id="exportStatus" class="ml-2.5 font-bold"></span>
+      </div>
+
+      <div
+        id="progressContainer"
+        style="display: none"
+        class="w-48 bg-neutral-800 rounded-full h-2.5 overflow-hidden ml-auto"
+      >
+        <div
+          id="progressBar"
+          class="bg-blue-600 h-2.5 w-0 transition-[width] duration-100 ease-out"
+        ></div>
       </div>
     </div>
 
-    <canvas id="canvas"></canvas>
+    <canvas
+      id="canvas"
+      class="block my-5 mx-auto bg-black shadow-[0 0 40px rgba(0,0,0,0.9)]"
+    ></canvas>
 
     <script src="js/audioEngine3.js"></script>
   </body>
