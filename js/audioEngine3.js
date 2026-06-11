@@ -159,7 +159,6 @@ document.getElementById('captureCurrent').addEventListener('click', () => {
     alert("Play audio first to capture a frame!");
     return;
   }
-
   const [targetW, targetH] = document.getElementById('videoResolution').value.split('x').map(Number);
 
   const captureCanvas = document.createElement('canvas');
@@ -178,7 +177,6 @@ document.getElementById('captureCurrent').addEventListener('click', () => {
 // ====================== HIGH-RES 30s THUMBNAIL ======================
 document.getElementById('capture30s').addEventListener('click', () => {
   if (!audioBuffer) return;
-
   const [targetW, targetH] = document.getElementById('videoResolution').value.split('x').map(Number);
 
   const tempSource = audioCtx.createBufferSource();
@@ -193,7 +191,6 @@ document.getElementById('capture30s').addEventListener('click', () => {
     captureCanvas.width = targetW;
     captureCanvas.height = targetH;
     const captureCtx = captureCanvas.getContext('2d', { alpha: true });
-
     draw(captureCanvas, captureCtx);
 
     const link = document.createElement('a');
@@ -206,6 +203,7 @@ document.getElementById('capture30s').addEventListener('click', () => {
 // ====================== VIDEO EXPORT ======================
 document.getElementById('startExport').addEventListener('click', async () => {
   if (!audioBuffer || isExporting) return;
+
   isExporting = true;
   recordedChunks = [];
   exportStartTime = audioCtx.currentTime;
@@ -224,6 +222,7 @@ document.getElementById('startExport').addEventListener('click', async () => {
   const stream = exportCanvas.captureStream(60);
 
   stopCurrentSource();
+
   source = audioCtx.createBufferSource();
   source.buffer = audioBuffer;
   analyser = audioCtx.createAnalyser();
@@ -232,18 +231,32 @@ document.getElementById('startExport').addEventListener('click', async () => {
 
   const dest = audioCtx.createMediaStreamDestination();
   source.connect(analyser).connect(dest);
-  if (dest.stream.getAudioTracks().length > 0) stream.addTrack(dest.stream.getAudioTracks()[0]);
+  if (dest.stream.getAudioTracks().length > 0) {
+    stream.addTrack(dest.stream.getAudioTracks()[0]);
+  }
+
+  // ✅ FIXED: Auto-stop recorder when audio ends
+  source.onended = () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+    }
+  };
 
   const bitrate = quality === 'ultra' ? 35e6 : quality === 'high' ? 20e6 : quality === 'premium' ? 15e6 : 10e6;
   let mimeType = 'video/mp4;codecs=avc1.42E01E,mp4a.40.2';
   if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp9';
 
-  mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate, audioBitsPerSecond: 320000 });
+  mediaRecorder = new MediaRecorder(stream, { 
+    mimeType, 
+    videoBitsPerSecond: bitrate, 
+    audioBitsPerSecond: 320000 
+  });
+
   mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
   mediaRecorder.onstop = finalizeExport;
 
   mediaRecorder.start(250);
-  source.start();
+  source.start(0); // start from beginning
 
   document.getElementById('startExport').style.display = 'none';
   document.getElementById('stopExport').style.display = 'block';
@@ -261,6 +274,7 @@ function finalizeExport() {
   a.download = `radial-explosion-${Date.now()}.${isMp4 ? 'mp4' : 'webm'}`;
   a.click();
   URL.revokeObjectURL(url);
+
   document.getElementById('exportStatus').textContent = '✅ Export complete!';
   resetUI();
 }
@@ -271,7 +285,10 @@ document.getElementById('stopExport').addEventListener('click', () => {
 });
 
 function stopCurrentSource() {
-  if (source) { try { source.stop(); } catch(e){} source = null; }
+  if (source) { 
+    try { source.stop(); } catch(e){}
+    source = null; 
+  }
 }
 
 function stopEverything() {
@@ -303,7 +320,6 @@ function updateSettings() {
   layerSpread = parseFloat(document.getElementById('layerSpread').value);
   glowIntensity = parseFloat(document.getElementById('glowIntensity').value);
 
-  // Update displayed values
   document.getElementById('rotValue').textContent = rotationSpeed.toFixed(4);
   document.getElementById('trailValue').textContent = trail.toFixed(2);
   document.getElementById('barsValue').textContent = bars;
