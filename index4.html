@@ -3,8 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Radial Audio Visualizer</title>
+    <title>Radial Explosion 3D</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+
     <style>
       body {
         font-family: system-ui, sans-serif;
@@ -21,9 +23,9 @@
       class="flex flex-col items-center justify-center w-full max-w-4xl h-full max-h-[90vh] gap-6"
     >
       <h1
-        class="text-2xl font-bold tracking-wider text-white text-center drop-shadow-md"
+        class="text-3xl font-bold tracking-wider text-white text-center drop-shadow-md"
       >
-        RADIAL EXPLOSION
+        RADIAL EXPLOSION <span class="text-indigo-400 text-xl">3D</span>
       </h1>
 
       <div
@@ -89,7 +91,7 @@
                   <option value="standard">Standard</option>
                   <option value="high" selected>High</option>
                   <option value="premium">Premium</option>
-                  <option value="ultra">Ultra (Max Quality)</option>
+                  <option value="ultra">Ultra (Max)</option>
                 </select>
               </div>
             </div>
@@ -109,7 +111,6 @@
               Cancel Export
             </button>
 
-            <!-- PNG Export Buttons -->
             <div class="grid grid-cols-2 gap-3">
               <button
                 id="captureCurrent"
@@ -155,7 +156,6 @@
       </div>
     </div>
 
-    <!-- Engine Logic Source Routing Initialization -->
-    <script src="js/audioEngine3.js"></script>
+    <script src="js/audioEngine4.js"></script>
   </body>
 </html>

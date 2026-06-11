@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Radial Audio Visualizer</title>
+    <title>Audio Visualizer</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
       body {
@@ -21,9 +21,9 @@
       class="flex flex-col items-center justify-center w-full max-w-4xl h-full max-h-[90vh] gap-6"
     >
       <h1
-        class="text-2xl font-bold tracking-wider text-white text-center drop-shadow-md"
+        class="text-3xl font-bold tracking-wider text-white text-center drop-shadow-md"
       >
-        RADIAL EXPLOSION
+        AUDIO VISUALIZER
       </h1>
 
       <div
@@ -62,7 +62,8 @@
           </div>
 
           <!-- Controls -->
-          <div class="flex flex-col gap-3">
+          <div class="flex flex-col gap-4">
+            <!-- Resolution & Quality -->
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-medium text-neutral-300 mb-1"
@@ -89,11 +90,233 @@
                   <option value="standard">Standard</option>
                   <option value="high" selected>High</option>
                   <option value="premium">Premium</option>
-                  <option value="ultra">Ultra (Max Quality)</option>
+                  <option value="ultra">Ultra</option>
                 </select>
               </div>
             </div>
 
+            <!-- Visualizer Settings -->
+            <div
+              class="bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 p-5"
+            >
+              <h3
+                class="text-sm font-semibold text-white mb-4 flex items-center gap-2"
+              >
+                ⚙️ Visualizer Settings
+              </h3>
+
+              <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <label class="block text-xs text-neutral-400 mb-1"
+                    >Rotation Speed</label
+                  >
+                  <input
+                    type="range"
+                    id="rotSpeed"
+                    min="0"
+                    max="0.05"
+                    step="0.0005"
+                    value="0.0025"
+                    class="w-full accent-violet-500"
+                  />
+                  <div
+                    class="text-xs text-neutral-500 text-right"
+                    id="rotValue"
+                  >
+                    0.0025
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs text-neutral-400 mb-1"
+                    >Trail (Fade)</label
+                  >
+                  <input
+                    type="range"
+                    id="trail"
+                    min="0.6"
+                    max="0.98"
+                    step="0.01"
+                    value="0.92"
+                    class="w-full accent-violet-500"
+                  />
+                  <div
+                    class="text-xs text-neutral-500 text-right"
+                    id="trailValue"
+                  >
+                    0.92
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs text-neutral-400 mb-1"
+                    >Number of Bars</label
+                  >
+                  <input
+                    type="range"
+                    id="bars"
+                    min="60"
+                    max="360"
+                    step="12"
+                    value="240"
+                    class="w-full accent-violet-500"
+                  />
+                  <div
+                    class="text-xs text-neutral-500 text-right"
+                    id="barsValue"
+                  >
+                    240
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs text-neutral-400 mb-1"
+                    >FFT Size</label
+                  >
+                  <select
+                    id="fftSize"
+                    class="w-full px-4 py-3 rounded-2xl border border-neutral-700 bg-neutral-950 text-white text-sm"
+                  >
+                    <option value="512">512 (Fast)</option>
+                    <option value="1024">1024</option>
+                    <option value="2048" selected>2048 (Balanced)</option>
+                    <option value="4096">4096 (Detailed)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Colors -->
+              <div class="mt-5 grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs text-neutral-400 mb-1"
+                    >Bar Color</label
+                  >
+                  <input
+                    type="color"
+                    id="barColor"
+                    value="#ec4899"
+                    class="w-full h-10 bg-transparent border border-neutral-700 rounded-2xl cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <label class="block text-xs text-neutral-400 mb-1"
+                    >Center Glow</label
+                  >
+                  <input
+                    type="color"
+                    id="centerColor"
+                    value="#e0f2fe"
+                    class="w-full h-10 bg-transparent border border-neutral-700 rounded-2xl cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <!-- Center Circle Size -->
+              <div class="mt-5">
+                <label class="block text-xs text-neutral-400 mb-1"
+                  >Center Circle Size</label
+                >
+                <input
+                  type="range"
+                  id="centerSize"
+                  min="0.0"
+                  max="0.85"
+                  step="0.01"
+                  value="0.48"
+                  class="w-full accent-violet-500"
+                />
+                <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                  <span>Tiny / None</span>
+                  <span id="centerSizeValue">0.48</span>
+                  <span>Large</span>
+                </div>
+              </div>
+              <!-- After Inner Radius slider -->
+              <div class="mt-5 grid grid-cols-3 gap-4">
+                <div>
+                  <label class="block text-xs text-neutral-400 mb-1"
+                    >Layers</label
+                  >
+                  <input
+                    type="range"
+                    id="layers"
+                    min="1"
+                    max="6"
+                    step="1"
+                    value="3"
+                    class="w-full accent-violet-500"
+                  />
+                  <div
+                    class="text-xs text-neutral-500 text-center"
+                    id="layersValue"
+                  >
+                    3
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs text-neutral-400 mb-1"
+                    >Layer Spread</label
+                  >
+                  <input
+                    type="range"
+                    id="layerSpread"
+                    min="0"
+                    max="0.35"
+                    step="0.01"
+                    value="0.12"
+                    class="w-full accent-violet-500"
+                  />
+                  <div
+                    class="text-xs text-neutral-500 text-center"
+                    id="layerSpreadValue"
+                  >
+                    0.12
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs text-neutral-400 mb-1"
+                    >Glow Intensity</label
+                  >
+                  <input
+                    type="range"
+                    id="glowIntensity"
+                    min="0.5"
+                    max="3"
+                    step="0.1"
+                    value="1.8"
+                    class="w-full accent-violet-500"
+                  />
+                  <div
+                    class="text-xs text-neutral-500 text-center"
+                    id="glowIntensityValue"
+                  >
+                    1.8
+                  </div>
+                </div>
+              </div>
+              <!-- Inner Radius -->
+              <div class="mt-5">
+                <label class="block text-xs text-neutral-400 mb-1"
+                  >Inner Radius (Lines Start)</label
+                >
+                <input
+                  type="range"
+                  id="innerRadius"
+                  min="0.0"
+                  max="0.8"
+                  step="0.01"
+                  value="0.65"
+                  class="w-full accent-violet-500"
+                />
+                <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                  <span>Center</span>
+                  <span id="innerRadiusValue">0.65</span>
+                  <span>Outer</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Export Buttons -->
             <button
               id="startExport"
               disabled
@@ -109,7 +332,6 @@
               Cancel Export
             </button>
 
-            <!-- PNG Export Buttons -->
             <div class="grid grid-cols-2 gap-3">
               <button
                 id="captureCurrent"
@@ -155,7 +377,6 @@
       </div>
     </div>
 
-    <!-- Engine Logic Source Routing Initialization -->
     <script src="js/audioEngine3.js"></script>
   </body>
 </html>
