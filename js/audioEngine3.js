@@ -1,4 +1,4 @@
-// js/audioEngine3.js
+// ====================== js/audioEngine3.js ======================
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { alpha: true });
 
@@ -15,12 +15,13 @@ let recordedChunks = [];
 let exportCanvas = null;
 let exportCtx = null;
 let exportStartTime = 0;
+let exportEndTime = 0;
+let exportDuration = 0;
 
 const progressBar = document.getElementById('progressBar');
 const progressContainer = document.getElementById('progressContainer');
 
-// ====================== CUSTOMIZABLE SETTINGS ======================
-let rotation = 0;
+// ====================== SETTINGS ======================
 let rotationSpeed = 0.0025;
 let trail = 0.92;
 let bars = 240;
@@ -31,29 +32,57 @@ let centerColor = '#e0f2fe';
 let centerSize = 0.48;
 let innerRadius = 0.65;
 
-// Layering & Depth
 let layers = 3;
 let layerSpread = 0.12;
 let glowIntensity = 1.8;
 
-// ====================== DRAW FUNCTION ======================
-function draw(targetCanvas, targetCtx) {
+let smoothedBass = 0;
+
+// ====================== CANVAS RESIZE ======================
+function resizeCanvas() {
+  const container = canvas.parentElement;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.floor(container.clientWidth * dpr);
+  canvas.height = Math.floor(container.clientHeight * dpr);
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ====================== DETERMINISTIC DRAW (No more drift) ======================
+function draw(targetCanvas, targetCtx, audioTime = null) {
   if (!analyser) return;
   analyser.getByteFrequencyData(dataArray);
 
-  targetCtx.fillStyle = `rgba(0, 0, 0, ${1 - trail})`;
-  targetCtx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
-
-  const cx = targetCanvas.width / 2;
-  const cy = targetCanvas.height / 2;
+  const w = targetCanvas.width;
+  const h = targetCanvas.height;
+  const cx = w / 2;
+  const cy = h / 2;
   const baseRadius = Math.min(cx, cy) * 0.18;
 
-  let bass = 0;
-  for (let i = 0; i < 40; i++) bass += dataArray[i];
-  bass = bass / 40 / 255;
+  targetCtx.fillStyle = `rgba(0, 0, 0, ${1 - trail})`;
+  targetCtx.fillRect(0, 0, w, h);
 
-  const pulse = baseRadius + bass * 120;
-  rotation += rotationSpeed + bass * 0.022;
+  // Enhanced bass
+  let rawBass = 0;
+  for (let i = 0; i < 48; i++) rawBass += dataArray[i];
+  rawBass = rawBass / (48 * 255);
+
+  smoothedBass = Math.max(rawBass, smoothedBass * 0.85) * 0.7 + rawBass * 0.3;
+  const bass = Math.pow(smoothedBass, 1.18);
+
+  const pulse = baseRadius + bass * 135;
+
+  // === KEY FIX: Rotation based on absolute audio time ===
+  const currentAudioTime = audioTime !== null ? audioTime : (audioCtx ? audioCtx.currentTime - exportStartTime : 0);
+  const rotation = (currentAudioTime * rotationSpeed * 60) + (bass * 0.8); // 60 = approx rAF rate
+
+  targetCtx.lineCap = "round";
+  targetCtx.lineJoin = "round";
+
+  const activeBars = (isExporting ? Math.min(bars, 200) : bars);
 
   for (let layer = 0; layer < layers; layer++) {
     const offset = (layer - (layers - 1) / 2) * layerSpread * pulse;
@@ -62,13 +91,13 @@ function draw(targetCanvas, targetCtx) {
 
     targetCtx.shadowColor = barColor;
     targetCtx.shadowBlur = 18 * glowIntensity * blurMult;
-    targetCtx.lineJoin = "round";
 
     targetCtx.beginPath();
-    for (let i = 0; i < bars; i++) {
-      const angle = (i / bars) * Math.PI * 2 + rotation;
-      const freqIndex = Math.floor((i / bars) * (dataArray.length * 0.7));
-      const amp = dataArray[freqIndex] / 255;
+
+    for (let i = 0; i < activeBars; i++) {
+      const angle = (i / activeBars) * Math.PI * 2 + rotation;
+      const freqIndex = Math.floor((i / activeBars) * (dataArray.length * 0.72));
+      const amp = (dataArray[freqIndex] || 0) / 255;
 
       const length = pulse + amp * Math.min(cx, cy) * 0.92;
       const startRadius = pulse * innerRadius + offset;
@@ -91,13 +120,15 @@ function draw(targetCanvas, targetCtx) {
   }
 
   targetCtx.globalAlpha = 1.0;
+  targetCtx.shadowBlur = 0;
 
-  // Center Glow
+  // Center glow
   targetCtx.shadowBlur = 70 * glowIntensity;
   targetCtx.shadowColor = centerColor;
-  targetCtx.fillStyle = `rgba(255,255,255,${0.75 + bass * 0.55})`;
+  targetCtx.fillStyle = `rgba(255,255,255,${0.75 + bass * 0.65})`;
+  
   const finalCenterRadius = pulse * centerSize;
-  if (finalCenterRadius > 3) {
+  if (finalCenterRadius > 2) {
     targetCtx.beginPath();
     targetCtx.arc(cx, cy, finalCenterRadius, 0, Math.PI * 2);
     targetCtx.fill();
@@ -124,8 +155,10 @@ document.getElementById('audioFile').addEventListener('change', e => {
       document.getElementById('captureCurrent').disabled = false;
       document.getElementById('capture30s').disabled = false;
       status.textContent = `Ready: ${file.name}`;
+      resizeCanvas();
     } catch (err) {
       status.textContent = '❌ Decode error';
+      console.error(err);
     }
   };
   reader.readAsArrayBuffer(file);
@@ -138,8 +171,12 @@ document.getElementById('playButton').addEventListener('click', () => {
 
   source = audioCtx.createBufferSource();
   source.buffer = audioBuffer;
+
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = fftSize;
+  analyser.smoothingTimeConstant = 0.74;
+  analyser.minDecibels = -92;
+  analyser.maxDecibels = -28;
   dataArray = new Uint8Array(analyser.frequencyBinCount);
 
   source.connect(analyser).connect(audioCtx.destination);
@@ -148,56 +185,26 @@ document.getElementById('playButton').addEventListener('click', () => {
   source.start();
   isPlaying = true;
   document.getElementById('playButton').textContent = '❚❚ Pause';
+  smoothedBass = 0;
   animate();
 });
 
 document.getElementById('stopButton').addEventListener('click', stopEverything);
 
-// ====================== HIGH-RES CAPTURE CURRENT FRAME ======================
+// ====================== CAPTURE ======================
 document.getElementById('captureCurrent').addEventListener('click', () => {
-  if (!analyser) {
-    alert("Play audio first to capture a frame!");
-    return;
-  }
+  if (!analyser) return alert("Play audio first!");
   const [targetW, targetH] = document.getElementById('videoResolution').value.split('x').map(Number);
 
-  const captureCanvas = document.createElement('canvas');
-  captureCanvas.width = targetW;
-  captureCanvas.height = targetH;
-  const captureCtx = captureCanvas.getContext('2d', { alpha: true });
-
-  draw(captureCanvas, captureCtx);
-
+  const capCanvas = document.createElement('canvas');
+  capCanvas.width = targetW; capCanvas.height = targetH;
+  const capCtx = capCanvas.getContext('2d');
+  draw(capCanvas, capCtx);
+  
   const link = document.createElement('a');
   link.download = `radial-frame-${targetW}x${targetH}.png`;
-  link.href = captureCanvas.toDataURL('image/png', 1.0);
+  link.href = capCanvas.toDataURL('image/png', 1.0);
   link.click();
-});
-
-// ====================== HIGH-RES 30s THUMBNAIL ======================
-document.getElementById('capture30s').addEventListener('click', () => {
-  if (!audioBuffer) return;
-  const [targetW, targetH] = document.getElementById('videoResolution').value.split('x').map(Number);
-
-  const tempSource = audioCtx.createBufferSource();
-  tempSource.buffer = audioBuffer;
-  const tempAnalyser = audioCtx.createAnalyser();
-  tempAnalyser.fftSize = fftSize;
-  tempSource.connect(tempAnalyser);
-  tempSource.start(0, 30);
-
-  setTimeout(() => {
-    const captureCanvas = document.createElement('canvas');
-    captureCanvas.width = targetW;
-    captureCanvas.height = targetH;
-    const captureCtx = captureCanvas.getContext('2d', { alpha: true });
-    draw(captureCanvas, captureCtx);
-
-    const link = document.createElement('a');
-    link.download = `radial-30s-${targetW}x${targetH}.png`;
-    link.href = captureCanvas.toDataURL('image/png', 1.0);
-    link.click();
-  }, 120);
 });
 
 // ====================== VIDEO EXPORT ======================
@@ -206,8 +213,6 @@ document.getElementById('startExport').addEventListener('click', async () => {
 
   isExporting = true;
   recordedChunks = [];
-  exportStartTime = audioCtx.currentTime;
-
   progressContainer.style.display = 'block';
   progressBar.style.width = '0%';
 
@@ -225,8 +230,12 @@ document.getElementById('startExport').addEventListener('click', async () => {
 
   source = audioCtx.createBufferSource();
   source.buffer = audioBuffer;
+
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = fftSize;
+  analyser.smoothingTimeConstant = 0.74;
+  analyser.minDecibels = -92;
+  analyser.maxDecibels = -28;
   dataArray = new Uint8Array(analyser.frequencyBinCount);
 
   const dest = audioCtx.createMediaStreamDestination();
@@ -235,16 +244,14 @@ document.getElementById('startExport').addEventListener('click', async () => {
     stream.addTrack(dest.stream.getAudioTracks()[0]);
   }
 
-  // ✅ FIXED: Auto-stop recorder when audio ends
-  source.onended = () => {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-    }
-  };
+  exportDuration = audioBuffer.duration;
+  exportStartTime = audioCtx.currentTime;
+  exportEndTime = exportStartTime + exportDuration + 0.3;
 
   const bitrate = quality === 'ultra' ? 35e6 : quality === 'high' ? 20e6 : quality === 'premium' ? 15e6 : 10e6;
+
   let mimeType = 'video/mp4;codecs=avc1.42E01E,mp4a.40.2';
-  if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp9';
+  if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp9,opus';
 
   mediaRecorder = new MediaRecorder(stream, { 
     mimeType, 
@@ -256,44 +263,40 @@ document.getElementById('startExport').addEventListener('click', async () => {
   mediaRecorder.onstop = finalizeExport;
 
   mediaRecorder.start(250);
-  source.start(0); // start from beginning
+  source.start(0);
 
   document.getElementById('startExport').style.display = 'none';
   document.getElementById('stopExport').style.display = 'block';
   document.getElementById('exportStatus').textContent = `Exporting ${w}×${h}...`;
 
+  smoothedBass = 0;
   animate();
 });
 
 function finalizeExport() {
-  const isMp4 = mediaRecorder.mimeType.includes('mp4');
+  const isMp4 = mediaRecorder?.mimeType.includes('mp4') || false;
   const blob = new Blob(recordedChunks, { type: isMp4 ? 'video/mp4' : 'video/webm' });
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `radial-explosion-${Date.now()}.${isMp4 ? 'mp4' : 'webm'}`;
+  a.download = `radial-visualizer-${Date.now()}.${isMp4 ? 'mp4' : 'webm'}`;
   a.click();
   URL.revokeObjectURL(url);
 
-  document.getElementById('exportStatus').textContent = '✅ Export complete!';
-  resetUI();
+  document.getElementById('exportStatus').textContent = '✅ Export Complete!';
+  setTimeout(resetUI, 1500);
 }
 
-document.getElementById('stopExport').addEventListener('click', () => {
-  if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
-  stopEverything();
-});
-
+// ====================== STOP ======================
 function stopCurrentSource() {
-  if (source) { 
-    try { source.stop(); } catch(e){}
-    source = null; 
-  }
+  if (source) { try { source.stop(); } catch(e) {} source = null; }
 }
 
 function stopEverything() {
   isPlaying = false;
   isExporting = false;
+  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
   stopCurrentSource();
   document.getElementById('playButton').textContent = '▶ Play';
   resetUI();
@@ -303,9 +306,16 @@ function resetUI() {
   document.getElementById('startExport').style.display = 'block';
   document.getElementById('stopExport').style.display = 'none';
   progressContainer.style.display = 'none';
+  progressBar.style.width = '0%';
 }
 
-// ====================== REAL-TIME CONTROLS ======================
+document.getElementById('stopExport').addEventListener('click', () => {
+  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+  stopEverything();
+  document.getElementById('exportStatus').textContent = 'Export cancelled';
+});
+
+// ====================== SETTINGS ======================
 function updateSettings() {
   rotationSpeed = parseFloat(document.getElementById('rotSpeed').value);
   trail = parseFloat(document.getElementById('trail').value);
@@ -315,16 +325,19 @@ function updateSettings() {
   centerColor = document.getElementById('centerColor').value;
   centerSize = parseFloat(document.getElementById('centerSize').value);
   innerRadius = parseFloat(document.getElementById('innerRadius').value);
-  
   layers = parseInt(document.getElementById('layers').value);
   layerSpread = parseFloat(document.getElementById('layerSpread').value);
   glowIntensity = parseFloat(document.getElementById('glowIntensity').value);
 
+  // Update displayed values...
   document.getElementById('rotValue').textContent = rotationSpeed.toFixed(4);
   document.getElementById('trailValue').textContent = trail.toFixed(2);
   document.getElementById('barsValue').textContent = bars;
   document.getElementById('centerSizeValue').textContent = centerSize.toFixed(2);
   document.getElementById('innerRadiusValue').textContent = innerRadius.toFixed(2);
+  document.getElementById('layersValue').textContent = layers;
+  document.getElementById('layerSpreadValue').textContent = layerSpread.toFixed(2);
+  document.getElementById('glowIntensityValue').textContent = glowIntensity.toFixed(1);
 }
 
 // ====================== ANIMATION ======================
@@ -333,23 +346,26 @@ function animate() {
   requestAnimationFrame(animate);
 
   if (isExporting && exportCtx) {
-    draw(exportCanvas, exportCtx);
+    const audioTime = audioCtx.currentTime - exportStartTime;
+    draw(exportCanvas, exportCtx, audioTime);
     ctx.drawImage(exportCanvas, 0, 0, canvas.width, canvas.height);
 
-    const elapsed = audioCtx.currentTime - exportStartTime;
-    const progress = Math.min((elapsed / audioBuffer.duration) * 100, 100);
+    const progress = Math.min((audioTime / exportDuration) * 100, 100);
     progressBar.style.width = `${progress}%`;
     document.getElementById('exportStatus').textContent = `Exporting ${Math.floor(progress)}%`;
-  } else if (isPlaying) {
+
+    if (audioCtx.currentTime >= exportEndTime) {
+      if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+      return;
+    }
+  } 
+  else if (isPlaying) {
     draw(canvas, ctx);
   }
 }
 
 // Attach listeners
 ['rotSpeed','trail','bars','fftSize','barColor','centerColor','centerSize','innerRadius','layers','layerSpread','glowIntensity']
-  .forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', updateSettings);
-  });
+  .forEach(id => document.getElementById(id).addEventListener('input', updateSettings));
 
 updateSettings();
