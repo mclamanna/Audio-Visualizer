@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Granular Sand with Image Collisions</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background-color: #000000;
+        color: #ffffff;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        overflow: hidden;
+      }
+      .controls {
+        position: absolute;
+        top: 20px;
+        display: flex;
+        gap: 12px;
+        background: rgba(15, 15, 15, 0.85);
+        padding: 10px 18px;
+        border-radius: 20px;
+        border: 1px solid #2a2a2a;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.9);
+        z-index: 10;
+        align-items: center;
+      }
+      button,
+      label.file-label {
+        background: #111111;
+        color: #ddd;
+        border: 1px solid #333;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 14px;
+        transition:
+          background 0.2s,
+          border-color 0.2s;
+        display: inline-block;
+      }
+      button:hover,
+      label.file-label:hover {
+        background: #222222;
+        border-color: #666;
+      }
+      input[type="file"] {
+        display: none;
+      }
+      canvas {
+        border-radius: 8px;
+        border: 1px solid #1a1a1a;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.95);
+        background-color: #050505;
+        cursor: crosshair;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <label class="file-label" for="imageInput">Upload Image Obstacle</label>
+      <input type="file" id="imageInput" accept="image/*" />
+      <button id="clearSandBtn">Clear Sand</button>
+      <button id="clearObstacleBtn">Clear Image</button>
+    </div>
+
+    <canvas id="sandCanvas"></canvas>
+
+    <script>
+      const canvas = document.getElementById("sandCanvas");
+      const ctx = canvas.getContext("2d");
+
+      const GRAVITY = 0.4;
+      const MAX_SPEED = 12;
+
+      let cols, rows;
+      let grid;
+      let obstacleGrid; // Boolean matrix: true = solid pixel
+
+      let imgData;
+      let buf32;
+
+      let isMouseDown = false;
+      let mouseX = 0;
+      let mouseY = 0;
+
+      class Particle {
+        constructor() {
+          const shade = Math.floor(140 + Math.random() * 115);
+          this.shade = shade;
+          this.color32 = (255 << 24) | (shade << 16) | (shade << 8) | shade;
+          this.velocity = 1;
+        }
+      }
+
+      function init() {
+        const width = Math.min(900, window.innerWidth - 30);
+        const height = Math.min(650, window.innerHeight - 90);
+
+        canvas.width = width;
+        canvas.height = height;
+
+        cols = width;
+        rows = height;
+
+        grid = createGrid();
+        if (!obstacleGrid) {
+          obstacleGrid = createObstacleGrid();
+        }
+
+        imgData = ctx.createImageData(width, height);
+        buf32 = new Uint32Array(imgData.data.buffer);
+      }
+
+      function createGrid() {
+        let arr = new Array(cols);
+        for (let i = 0; i < arr.length; i++) {
+          arr[i] = new Array(rows).fill(null);
+        }
+        return arr;
+      }
+
+      function createObstacleGrid() {
+        let arr = new Array(cols);
+        for (let i = 0; i < arr.length; i++) {
+          arr[i] = new Array(rows).fill(false);
+        }
+        return arr;
+      }
+
+      // Load 2D image and convert white/opaque pixels into solid obstacles
+      document.getElementById("imageInput").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const tempCanvas = document.createElement("canvas");
+            const tempCtx = tempCanvas.getContext("2d");
+            tempCanvas.width = cols;
+            tempCanvas.height = rows;
+
+            // Scale image proportionally within canvas bounds
+            const scale = Math.min(cols / img.width, rows / img.height) * 0.7;
+            const w = img.width * scale;
+            const h = img.height * scale;
+            const x = (cols - w) / 2;
+            const y = (rows - h) / 2;
+
+            tempCtx.drawImage(img, x, y, w, h);
+            const loadedData = tempCtx.getImageData(0, 0, cols, rows).data;
+
+            obstacleGrid = createObstacleGrid();
+
+            // Evaluate pixel brightness/alpha to mark collision cells
+            for (let r = 0; r < rows; r++) {
+              for (let c = 0; c < cols; c++) {
+                const idx = (r * cols + c) * 4;
+                const alpha = loadedData[idx + 3];
+                const brightness =
+                  (loadedData[idx] +
+                    loadedData[idx + 1] +
+                    loadedData[idx + 2]) /
+                  3;
+
+                // Treat visible non-black pixels as solid collision barriers
+                if (alpha > 128 && brightness > 30) {
+                  obstacleGrid[c][r] = true;
+                }
+              }
+            }
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      function spawnSand() {
+        if (!isMouseDown) return;
+
+        const col = Math.floor(mouseX);
+        const row = Math.floor(mouseY);
+        const radius = 8;
+
+        for (let i = -radius; i <= radius; i++) {
+          for (let j = -radius; j <= radius; j++) {
+            if (Math.random() > 0.75) {
+              const c = col + i;
+              const r = row + j;
+
+              if (i * i + j * j <= radius * radius) {
+                if (c >= 0 && c < cols && r >= 0 && r < rows) {
+                  // Do not spawn inside solid obstacle regions
+                  if (!grid[c][r] && !obstacleGrid[c][r]) {
+                    grid[c][r] = new Particle();
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      function isBlocked(x, y) {
+        if (x < 0 || x >= cols || y >= rows) return true;
+        return obstacleGrid[x][y] || grid[x][y] !== null;
+      }
+
+      function updateGrid() {
+        let nextGrid = createGrid();
+
+        for (let y = rows - 1; y >= 0; y--) {
+          for (let x = 0; x < cols; x++) {
+            let p = grid[x][y];
+            if (!p) continue;
+
+            p.velocity = Math.min(p.velocity + GRAVITY, MAX_SPEED);
+            let steps = Math.max(1, Math.floor(p.velocity));
+
+            let currentX = x;
+            let currentY = y;
+            let moved = false;
+
+            for (let step = 0; step < steps; step++) {
+              let below = currentY + 1;
+
+              if (
+                below < rows &&
+                !obstacleGrid[currentX][below] &&
+                !grid[currentX][below] &&
+                !nextGrid[currentX][below]
+              ) {
+                currentY = below;
+                moved = true;
+              } else {
+                break;
+              }
+            }
+
+            // Roll down slopes and off edges of obstacles
+            if (!moved) {
+              let below = currentY + 1;
+              let dir = Math.random() < 0.5 ? 1 : -1;
+              let sideA = currentX + dir;
+              let sideB = currentX - dir;
+
+              if (
+                below < rows &&
+                sideA >= 0 &&
+                sideA < cols &&
+                !obstacleGrid[sideA][below] &&
+                !grid[sideA][below] &&
+                !nextGrid[sideA][below]
+              ) {
+                currentX = sideA;
+                currentY = below;
+                moved = true;
+              } else if (
+                below < rows &&
+                sideB >= 0 &&
+                sideB < cols &&
+                !obstacleGrid[sideB][below] &&
+                !grid[sideB][below] &&
+                !nextGrid[sideB][below]
+              ) {
+                currentX = sideB;
+                currentY = below;
+                moved = true;
+              }
+            }
+
+            if (!moved) {
+              p.velocity = 1;
+            }
+
+            nextGrid[currentX][currentY] = p;
+          }
+        }
+
+        grid = nextGrid;
+      }
+
+      function render() {
+        buf32.fill(0xff050505); // Dark background
+
+        for (let x = 0; x < cols; x++) {
+          for (let y = 0; y < rows; y++) {
+            const idx = y * cols + x;
+
+            // Render solid image obstacle in dark grey
+            if (obstacleGrid[x][y]) {
+              buf32[idx] = 0xff666666;
+            }
+            // Render sand particles on top
+            else if (grid[x][y]) {
+              buf32[idx] = grid[x][y].color32;
+            }
+          }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+      }
+
+      function animate() {
+        spawnSand();
+        updateGrid();
+        render();
+        requestAnimationFrame(animate);
+      }
+
+      window.addEventListener("resize", init);
+
+      canvas.addEventListener("mousedown", (e) => {
+        isMouseDown = true;
+        updateMousePos(e);
+      });
+
+      canvas.addEventListener("mouseup", () => (isMouseDown = false));
+      canvas.addEventListener("mouseleave", () => (isMouseDown = false));
+      canvas.addEventListener("mousemove", (e) => updateMousePos(e));
+
+      canvas.addEventListener(
+        "touchstart",
+        (e) => {
+          isMouseDown = true;
+          updateTouchPos(e);
+        },
+        { passive: true },
+      );
+
+      canvas.addEventListener("touchend", () => (isMouseDown = false));
+      canvas.addEventListener("touchmove", (e) => updateTouchPos(e), {
+        passive: true,
+      });
+
+      function updateMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        mouseX = e.clientX - rect.left;
+        mouseY = e.clientY - rect.top;
+      }
+
+      function updateTouchPos(e) {
+        if (e.touches.length > 0) {
+          const rect = canvas.getBoundingClientRect();
+          mouseX = e.touches[0].clientX - rect.left;
+          mouseY = e.touches[0].clientY - rect.top;
+        }
+      }
+
+      document.getElementById("clearSandBtn").addEventListener("click", () => {
+        grid = createGrid();
+      });
+
+      document
+        .getElementById("clearObstacleBtn")
+        .addEventListener("click", () => {
+          obstacleGrid = createObstacleGrid();
+        });
+
+      init();
+      animate();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sand Grain Visual Effect</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background-color: #0f111a;
+        color: #e0e6ed;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        overflow: hidden;
+      }
+      .controls {
+        position: absolute;
+        top: 20px;
+        display: flex;
+        gap: 12px;
+        background: rgba(20, 24, 36, 0.85);
+        padding: 10px 18px;
+        border-radius: 20px;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        z-index: 10;
+      }
+      button {
+        background: #2a3147;
+        color: #fff;
+        border: none;
+        padding: 8px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+      }
+      button:hover {
+        background: #3d4663;
+      }
+      canvas {
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+        background-color: #050608;
+        cursor: crosshair;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <button id="clearBtn">Clear Canvas</button>
+    </div>
+
+    <canvas id="sandCanvas"></canvas>
+
+    <script>
+      const canvas = document.getElementById("sandCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // Scale of each sand grain in pixels
+      const CELL_SIZE = 4;
+      let cols, rows;
+      let grid, nextGrid;
+
+      // Track mouse state
+      let isMouseDown = false;
+      let mouseX = 0;
+      let mouseY = 0;
+
+      // Base Hue for Sand Colors
+      let hueValue = 40;
+
+      function init() {
+        // Set canvas size relative to window size
+        const width = Math.min(800, window.innerWidth - 40);
+        const height = Math.min(600, window.innerHeight - 100);
+
+        canvas.width = width;
+        canvas.height = height;
+
+        cols = Math.floor(width / CELL_SIZE);
+        rows = Math.floor(height / CELL_SIZE);
+
+        // Create 2D grid filled with zeros (0 = empty cell)
+        grid = makeGrid();
+        nextGrid = makeGrid();
+      }
+
+      function makeGrid() {
+        let arr = new Array(cols);
+        for (let i = 0; i < arr.length; i++) {
+          arr[i] = new Array(rows).fill(0);
+        }
+        return arr;
+      }
+
+      // Spawn sand grains near current mouse position
+      function spawnSand() {
+        if (!isMouseDown) return;
+
+        const col = Math.floor(mouseX / CELL_SIZE);
+        const row = Math.floor(mouseY / CELL_SIZE);
+        const matrixSize = 3; // Brush radius
+
+        for (let i = -matrixSize; i <= matrixSize; i++) {
+          for (let j = -matrixSize; j <= matrixSize; j++) {
+            if (Math.random() > 0.6) {
+              // Density variation
+              const c = col + i;
+              const r = row + j;
+              if (c >= 0 && c < cols && r >= 0 && r < rows) {
+                if (grid[c][r] === 0) {
+                  // Store HSL hue value in cell (varies color slightly)
+                  grid[c][r] = hueValue;
+                }
+              }
+            }
+          }
+        }
+
+        // Shift hue over time for a gentle color shift
+        hueValue = (hueValue + 0.5) % 360;
+      }
+
+      // Cell Cellular Automata Step
+      function updateGrid() {
+        // Reset next state grid
+        nextGrid = makeGrid();
+
+        for (let x = 0; x < cols; x++) {
+          for (let y = 0; y < rows; y++) {
+            let state = grid[x][y];
+
+            if (state > 0) {
+              // Grain exists
+              let below = y + 1;
+              let dir = Math.random() < 0.5 ? 1 : -1;
+
+              let belowA = x + dir;
+              let belowB = x - dir;
+
+              // 1. Fall directly down
+              if (
+                below < rows &&
+                grid[x][below] === 0 &&
+                nextGrid[x][below] === 0
+              ) {
+                nextGrid[x][below] = state;
+              }
+              // 2. Slide diagonally down (direction A)
+              else if (
+                below < rows &&
+                belowA >= 0 &&
+                belowA < cols &&
+                grid[belowA][below] === 0 &&
+                nextGrid[belowA][below] === 0
+              ) {
+                nextGrid[belowA][below] = state;
+              }
+              // 3. Slide diagonally down (direction B)
+              else if (
+                below < rows &&
+                belowB >= 0 &&
+                belowB < cols &&
+                grid[belowB][below] === 0 &&
+                nextGrid[belowB][below] === 0
+              ) {
+                nextGrid[belowB][below] = state;
+              }
+              // 4. Stay in place
+              else {
+                nextGrid[x][y] = state;
+              }
+            }
+          }
+        }
+
+        grid = nextGrid;
+      }
+
+      // Draw grid to HTML5 canvas
+      function render() {
+        ctx.fillStyle = "#050608";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let x = 0; x < cols; x++) {
+          for (let y = 0; y < rows; y++) {
+            if (grid[x][y] > 0) {
+              let hue = grid[x][y];
+              ctx.fillStyle = `hsl(${hue}, 80%, 60%)`;
+              ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            }
+          }
+        }
+      }
+
+      function animate() {
+        spawnSand();
+        updateGrid();
+        render();
+        requestAnimationFrame(animate);
+      }
+
+      // Event Listeners
+      window.addEventListener("resize", init);
+
+      canvas.addEventListener("mousedown", (e) => {
+        isMouseDown = true;
+        updateMousePos(e);
+      });
+
+      canvas.addEventListener("mouseup", () => (isMouseDown = false));
+      canvas.addEventListener("mouseleave", () => (isMouseDown = false));
+
+      canvas.addEventListener("mousemove", (e) => {
+        updateMousePos(e);
+      });
+
+      // Touch support for mobile devices
+      canvas.addEventListener("touchstart", (e) => {
+        isMouseDown = true;
+        updateTouchPos(e);
+      });
+      canvas.addEventListener("touchend", () => (isMouseDown = false));
+      canvas.addEventListener("touchmove", (e) => {
+        updateTouchPos(e);
+      });
+
+      function updateMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        mouseX = e.clientX - rect.left;
+        mouseY = e.clientY - rect.top;
+      }
+
+      function updateTouchPos(e) {
+        if (e.touches.length > 0) {
+          const rect = canvas.getBoundingClientRect();
+          mouseX = e.touches[0].clientX - rect.left;
+          mouseY = e.touches[0].clientY - rect.top;
+        }
+      }
+
+      document.getElementById("clearBtn").addEventListener("click", () => {
+        grid = makeGrid();
+      });
+
+      // Start simulation
+      init();
+      animate();
+    </script>
+  </body>
+</html>
