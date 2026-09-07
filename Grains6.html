@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>
-      Audio Reactive Warp Tunnel Visualizer (320kbps Audio .MOV Export)
+      Audio Reactive Visualizer (TikTok 9:16 & Square 1:1 .MOV Export)
     </title>
     <style>
       /* CSS RESET & BASE STYLES */
@@ -28,16 +28,34 @@
         align-items: center;
       }
 
+      /* 
+      CANVAS CONTAINER:
+      Dynamically resizes visually while preserving internal rendering resolution 
+    */
       .canvas-container {
         position: relative;
+        max-width: 90vh;
+        max-height: 85vh;
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.3s ease;
+      }
+
+      /* Aspect ratio dynamic helper classes */
+      .canvas-container.ratio-1-1 {
         width: 1080px;
         height: 1080px;
-        max-width: 90vh;
-        max-height: 90vh;
         aspect-ratio: 1 / 1;
-        box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
-        border-radius: 8px;
-        overflow: hidden;
+      }
+
+      .canvas-container.ratio-9-16 {
+        width: 607px; /* Scaled down preview width for 1080x1920 */
+        height: 1080px;
+        aspect-ratio: 9 / 16;
       }
 
       #canvas {
@@ -48,20 +66,20 @@
 
       .controls-panel {
         position: absolute;
-        bottom: 20px;
+        bottom: 15px;
         left: 50%;
         transform: translateX(-50%);
         z-index: 10;
-        background: rgba(18, 22, 34, 0.85);
+        background: rgba(18, 22, 34, 0.88);
         backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 16px;
-        padding: 16px 24px;
+        padding: 14px 20px;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         justify-content: center;
-        gap: 16px;
+        gap: 14px;
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
         max-width: 95vw;
       }
@@ -78,6 +96,18 @@
         letter-spacing: 1px;
         color: #8a99ad;
         font-weight: 600;
+      }
+
+      select {
+        background: #1f2833;
+        color: #66fcf1;
+        border: 1px solid #45a29e;
+        padding: 7px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        outline: none;
+        cursor: pointer;
       }
 
       .file-input-wrapper {
@@ -154,7 +184,7 @@
 
       input[type="range"] {
         -webkit-appearance: none;
-        width: 90px;
+        width: 80px;
         background: #1f2833;
         height: 6px;
         border-radius: 3px;
@@ -179,11 +209,21 @@
     </style>
   </head>
   <body>
-    <div class="canvas-container">
+    <div class="canvas-container ratio-1-1" id="canvas-wrapper">
+      <!-- Default internal render resolution is 1080x1080 -->
       <canvas id="canvas" width="1080" height="1080"></canvas>
     </div>
 
     <div class="controls-panel">
+      <!-- Format Selector -->
+      <div class="control-group">
+        <label for="aspect-ratio">Size</label>
+        <select id="aspect-ratio">
+          <option value="1:1">Square (1080x1080)</option>
+          <option value="9:16">TikTok (1080x1920)</option>
+        </select>
+      </div>
+
       <div class="control-group">
         <div class="file-input-wrapper">
           <button class="btn" id="file-label-btn">📁 Audio File</button>
@@ -233,9 +273,11 @@
     </div>
 
     <script>
+      const canvasWrapper = document.getElementById("canvas-wrapper");
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
 
+      const aspectRatioSelect = document.getElementById("aspect-ratio");
       const fileInput = document.getElementById("audio-file");
       const fileLabelBtn = document.getElementById("file-label-btn");
       const playBtn = document.getElementById("play-btn");
@@ -261,6 +303,23 @@
 
       let particles = [];
       let particleCount = parseInt(particleCountInput.value);
+
+      // ==========================================
+      // ASPECT RATIO SWITCHER (TikTok 9:16 vs Square 1:1)
+      // ==========================================
+      aspectRatioSelect.addEventListener("change", (e) => {
+        const mode = e.target.value;
+        if (mode === "9:16") {
+          canvas.width = 1080;
+          canvas.height = 1920; // Native vertical TikTok resolution
+          canvasWrapper.className = "canvas-container ratio-9-16";
+        } else {
+          canvas.width = 1080;
+          canvas.height = 1080; // Standard Square resolution
+          canvasWrapper.className = "canvas-container ratio-1-1";
+        }
+        initParticles(); // Re-center and adjust particle positions
+      });
 
       class Particle {
         constructor() {
@@ -458,11 +517,10 @@
         let selectedType =
           mimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) || "";
 
-        // High Bitrate Video (30 Mbps) & Maximum Bitrate Audio (320 kbps)
         const recorderOptions = {
           mimeType: selectedType,
           videoBitsPerSecond: 30000000,
-          audioBitsPerSecond: 320000, // Set to 320 kbps for CD/Studio audio quality
+          audioBitsPerSecond: 320000, // 320 kbps Studio Audio
         };
 
         try {
@@ -487,7 +545,7 @@
         isRecording = true;
         recordBtn.textContent = "⏹ Stop & Save";
         recordBtn.classList.add("recording");
-        statusText.textContent = "Recording HD MOV (320kbps Audio)...";
+        statusText.textContent = "Recording MOV...";
       }
 
       function stopRecording() {
@@ -505,7 +563,13 @@
         const a = document.createElement("a");
         a.style.display = "none";
         a.href = url;
-        a.download = `tunnel_visualizer_1080x1080_HQ.mov`;
+
+        const mode =
+          aspectRatioSelect.value === "9:16"
+            ? "TikTok_1080x1920"
+            : "Square_1080x1080";
+        a.download = `tunnel_visualizer_${mode}.mov`;
+
         document.body.appendChild(a);
         a.click();
 
