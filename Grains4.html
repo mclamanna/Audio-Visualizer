@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Granular Sand Synthesizer & MIDI Controller</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background-color: #050505;
+        color: #ffffff;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        overflow: hidden;
+      }
+      .controls {
+        position: absolute;
+        top: 15px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        background: rgba(15, 15, 15, 0.9);
+        padding: 10px 16px;
+        border-radius: 16px;
+        border: 1px solid #2a2a2a;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.9);
+        z-index: 10;
+        align-items: center;
+        justify-content: center;
+        max-width: 95vw;
+      }
+      button,
+      label.file-label,
+      select {
+        background: #111111;
+        color: #ddd;
+        border: 1px solid #333;
+        padding: 6px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 13px;
+        transition:
+          background 0.2s,
+          border-color 0.2s;
+        display: inline-block;
+      }
+      button:hover,
+      label.file-label:hover,
+      select:hover {
+        background: #222222;
+        border-color: #666;
+      }
+      button.active {
+        background: #223322;
+        border-color: #44aa44;
+        color: #88ff88;
+      }
+      input[type="file"] {
+        display: none;
+      }
+      canvas {
+        border-radius: 8px;
+        border: 1px solid #1a1a1a;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.95);
+        background-color: #000000;
+        cursor: crosshair;
+      }
+      .status {
+        font-size: 11px;
+        color: #888;
+        margin-left: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <button id="audioToggleBtn">🔊 Audio Synth: OFF</button>
+      <button id="midiToggleBtn">🎹 Web MIDI: OFF</button>
+
+      <label class="file-label" for="audioInput">🎵 Load Audio Sample</label>
+      <input type="file" id="audioInput" accept="audio/*" />
+
+      <label class="file-label" for="imageInput">🖼️ Load Obstacle</label>
+      <input type="file" id="imageInput" accept="image/*" />
+
+      <select id="materialSelect">
+        <option value="coarse">Coarse Sand (Heavy/Low Pitch)</option>
+        <option value="fine" selected>Fine Dust (Light/Shimmer)</option>
+        <option value="liquid">Viscous Liquid (Glide/Fluid)</option>
+      </select>
+
+      <button id="clearSandBtn">Clear Sand</button>
+      <button id="clearObstacleBtn">Clear Image</button>
+
+      <span id="statusText" class="status">Synth: Procedural Pink Noise</span>
+    </div>
+
+    <canvas id="sandCanvas"></canvas>
+
+    <script>
+      const canvas = document.getElementById("sandCanvas");
+      const ctx = canvas.getContext("2d");
+
+      const GRAVITY = 0.4;
+      const MAX_SPEED = 12;
+
+      let cols, rows;
+      let grid;
+      let obstacleGrid;
+
+      let imgData;
+      let buf32;
+
+      let isMouseDown = false;
+      let mouseX = 0;
+      let mouseY = 0;
+
+      // Material Definitions
+      const MATERIALS = {
+        coarse: {
+          id: "coarse",
+          colorRange: [200, 255, 80, 140, 20, 50], // RGB lower/upper limits
+          density: 1.5,
+          scatter: 0.3,
+          pitchMult: 0.5,
+          grainDur: 0.08,
+        },
+        fine: {
+          id: "fine",
+          colorRange: [180, 240, 180, 240, 200, 255],
+          density: 0.8,
+          scatter: 0.75,
+          pitchMult: 1.2,
+          grainDur: 0.03,
+        },
+        liquid: {
+          id: "liquid",
+          colorRange: [40, 80, 180, 240, 200, 255],
+          density: 1.0,
+          scatter: 0.95,
+          pitchMult: 0.9,
+          grainDur: 0.05,
+        },
+      };
+
+      let currentMaterial = MATERIALS.fine;
+
+      // Audio Engine State
+      let audioCtx = null;
+      let customBuffer = null;
+      let noiseGainNode = null;
+      let pourGainNode = null;
+      let filterNode = null;
+      let isAudioEnabled = false;
+      let activeMovementCount = 0;
+      let collisionEvents = [];
+
+      // Web MIDI State
+      let midiOutput = null;
+      let isMidiEnabled = false;
+      let lastMidiCcTime = 0;
+
+      class Particle {
+        constructor(material) {
+          this.material = material;
+          this.velocity = 1;
+          const r = Math.floor(
+            material.colorRange[0] +
+              Math.random() * (material.colorRange[1] - material.colorRange[0]),
+          );
+          const g = Math.floor(
+            material.colorRange[2] +
+              Math.random() * (material.colorRange[3] - material.colorRange[2]),
+          );
+          const b = Math.floor(
+            material.colorRange[4] +
+              Math.random() * (material.colorRange[5] - material.colorRange[4]),
+          );
+          this.color32 = (255 << 24) | (b << 16) | (g << 8) | r;
+        }
+      }
+
+      // --- Web Audio Synthesizer & Granular Engine ---
+      function initAudio() {
+        if (audioCtx) return;
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+
+        // 2-second pink noise fallback buffer
+        const bufferSize = audioCtx.sampleRate * 2;
+        const noiseBuffer = audioCtx.createBuffer(
+          1,
+          bufferSize,
+          audioCtx.sampleRate,
+        );
+        const output = noiseBuffer.getChannelData(0);
+        let b0 = 0,
+          b1 = 0,
+          b2 = 0,
+          b3 = 0,
+          b4 = 0,
+          b5 = 0,
+          b6 = 0;
+
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.969 * b2 + white * 0.153852;
+          b3 = 0.8665 * b3 + white * 0.3104856;
+          b4 = 0.55 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.016898;
+          output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+          output[i] *= 0.11;
+          b6 = white * 0.115926;
+        }
+
+        const whiteNoise = audioCtx.createBufferSource();
+        whiteNoise.buffer = noiseBuffer;
+        whiteNoise.loop = true;
+
+        filterNode = audioCtx.createBiquadFilter();
+        filterNode.type = "bandpass";
+        filterNode.frequency.setValueAtTime(2200, audioCtx.currentTime);
+        filterNode.Q.setValueAtTime(1.2, audioCtx.currentTime);
+
+        noiseGainNode = audioCtx.createGain();
+        noiseGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+
+        pourGainNode = audioCtx.createGain();
+        pourGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+
+        whiteNoise.connect(filterNode);
+        filterNode.connect(noiseGainNode);
+        filterNode.connect(pourGainNode);
+        noiseGainNode.connect(audioCtx.destination);
+        pourGainNode.connect(audioCtx.destination);
+
+        whiteNoise.start();
+      }
+
+      function triggerSampleGrain(x, y, particle) {
+        if (!isAudioEnabled || !audioCtx || !customBuffer) return;
+
+        const grain = audioCtx.createBufferSource();
+        const grainGain = audioCtx.createGain();
+        const panner = audioCtx.createStereoPanner
+          ? audioCtx.createStereoPanner()
+          : null;
+
+        grain.buffer = customBuffer;
+
+        const normalizedX = x / cols;
+        const normalizedY = y / rows;
+
+        const dur = particle.material.grainDur;
+        const offset = normalizedX * Math.max(0, customBuffer.duration - dur);
+
+        // Map pitch dynamically by Y position + material modifier
+        const pitch =
+          (0.5 + (1 - normalizedY) * 1.5) * particle.material.pitchMult;
+        grain.playbackRate.value = Math.max(0.1, pitch);
+
+        const now = audioCtx.currentTime;
+        grainGain.gain.setValueAtTime(0, now);
+        grainGain.gain.linearRampToValueAtTime(0.12, now + dur * 0.2);
+        grainGain.gain.linearRampToValueAtTime(0, now + dur);
+
+        grain.connect(grainGain);
+
+        if (panner) {
+          panner.pan.value = normalizedX * 2 - 1; // Stereo positioning
+          grainGain.connect(panner);
+          panner.connect(audioCtx.destination);
+        } else {
+          grainGain.connect(audioCtx.destination);
+        }
+
+        grain.start(now, offset, dur);
+      }
+
+      function updateAudio() {
+        if (!isAudioEnabled || !audioCtx) return;
+
+        const now = audioCtx.currentTime;
+
+        // Process procedural sound when no sample loaded
+        if (!customBuffer) {
+          const targetCascadeVol = Math.min(activeMovementCount / 4000, 0.35);
+          noiseGainNode.gain.setTargetAtTime(targetCascadeVol, now, 0.05);
+
+          const targetFreq = 1600 + Math.min(activeMovementCount / 20, 2000);
+          filterNode.frequency.setTargetAtTime(targetFreq, now, 0.08);
+
+          const targetPourVol = isMouseDown ? 0.25 : 0;
+          pourGainNode.gain.setTargetAtTime(targetPourVol, now, 0.03);
+        } else {
+          noiseGainNode.gain.setTargetAtTime(0, now, 0.01);
+          pourGainNode.gain.setTargetAtTime(0, now, 0.01);
+        }
+
+        // Process grain triggers from collisions
+        if (customBuffer && collisionEvents.length > 0) {
+          // Throttle grain triggers to avoid voice exhaustion
+          const step = Math.max(1, Math.floor(collisionEvents.length / 8));
+          for (let i = 0; i < collisionEvents.length; i += step) {
+            const evt = collisionEvents[i];
+            triggerSampleGrain(evt.x, evt.y, evt.particle);
+          }
+        }
+      }
+
+      function toggleAudio() {
+        if (!audioCtx) initAudio();
+
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+
+        isAudioEnabled = !isAudioEnabled;
+        const btn = document.getElementById("audioToggleBtn");
+
+        if (isAudioEnabled) {
+          btn.textContent = "🔊 Audio Synth: ON";
+          btn.classList.add("active");
+        } else {
+          btn.textContent = "🔇 Audio Synth: OFF";
+          btn.classList.remove("active");
+          if (noiseGainNode)
+            noiseGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+          if (pourGainNode)
+            pourGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+        }
+      }
+
+      // --- Web MIDI Integration ---
+      function initMIDI() {
+        if (!navigator.requestMIDIAccess) {
+          alert("Web MIDI is not supported in this browser.");
+          return;
+        }
+
+        navigator.requestMIDIAccess().then(
+          (midiAccess) => {
+            const outputs = Array.from(midiAccess.outputs.values());
+            if (outputs.length > 0) {
+              midiOutput = outputs[0];
+              isMidiEnabled = true;
+              const btn = document.getElementById("midiToggleBtn");
+              btn.textContent = `🎹 MIDI: ON (${midiOutput.name})`;
+              btn.classList.add("active");
+            } else {
+              alert("No MIDI Output devices detected.");
+            }
+          },
+          (err) => alert("MIDI Access Denied: " + err),
+        );
+      }
+
+      function sendMidiEvents() {
+        if (!isMidiEnabled || !midiOutput) return;
+
+        const now = performance.now();
+
+        // Send MIDI CC 74 (Filter Cutoff) based on active falling particles (10Hz throttle)
+        if (now - lastMidiCcTime > 100) {
+          const ccValue = Math.min(
+            127,
+            Math.floor((activeMovementCount / 3000) * 127),
+          );
+          midiOutput.send([0xb0, 74, ccValue]);
+          lastMidiCcTime = now;
+        }
+
+        // Send Note events on obstacle impacts
+        if (collisionEvents.length > 0) {
+          const evt = collisionEvents[0]; // Take primary collision event
+          const note = Math.floor(36 + (evt.x / cols) * 48); // Note map: C2 -> C6
+          const velocity = Math.floor(40 + (1 - evt.y / rows) * 87);
+
+          // Trigger short micro-grain note
+          midiOutput.send([0x90, note, velocity]);
+          setTimeout(() => {
+            midiOutput.send([0x80, note, 0]);
+          }, 30);
+        }
+      }
+
+      function toggleMIDI() {
+        if (!isMidiEnabled) {
+          initMIDI();
+        } else {
+          isMidiEnabled = false;
+          midiOutput = null;
+          const btn = document.getElementById("midiToggleBtn");
+          btn.textContent = "🎹 Web MIDI: OFF";
+          btn.classList.remove("active");
+        }
+      }
+
+      // --- Simulation Engine ---
+      function init() {
+        const width = Math.min(900, window.innerWidth - 30);
+        const height = Math.min(650, window.innerHeight - 100);
+
+        canvas.width = width;
+        canvas.height = height;
+
+        cols = width;
+        rows = height;
+
+        grid = createGrid();
+        if (!obstacleGrid) {
+          obstacleGrid = createObstacleGrid();
+        }
+
+        imgData = ctx.createImageData(width, height);
+        buf32 = new Uint32Array(imgData.data.buffer);
+      }
+
+      function createGrid() {
+        let arr = new Array(cols);
+        for (let i = 0; i < arr.length; i++) {
+          arr[i] = new Array(rows).fill(null);
+        }
+        return arr;
+      }
+
+      function createObstacleGrid() {
+        let arr = new Array(cols);
+        for (let i = 0; i < arr.length; i++) {
+          arr[i] = new Array(rows).fill(false);
+        }
+        return arr;
+      }
+
+      function spawnSand() {
+        if (!isMouseDown) return;
+
+        const col = Math.floor(mouseX);
+        const row = Math.floor(mouseY);
+        const radius = 8;
+
+        for (let i = -radius; i <= radius; i++) {
+          for (let j = -radius; j <= radius; j++) {
+            if (Math.random() < currentMaterial.scatter) {
+              const c = col + i;
+              const r = row + j;
+
+              if (i * i + j * j <= radius * radius) {
+                if (c >= 0 && c < cols && r >= 0 && r < rows) {
+                  if (!grid[c][r] && !obstacleGrid[c][r]) {
+                    grid[c][r] = new Particle(currentMaterial);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      function updateGrid() {
+        let nextGrid = createGrid();
+        activeMovementCount = 0;
+        collisionEvents = [];
+
+        for (let y = rows - 1; y >= 0; y--) {
+          for (let x = 0; x < cols; x++) {
+            let p = grid[x][y];
+            if (!p) continue;
+
+            p.velocity = Math.min(
+              p.velocity + GRAVITY * p.material.density,
+              MAX_SPEED,
+            );
+            let steps = Math.max(1, Math.floor(p.velocity));
+
+            let currentX = x;
+            let currentY = y;
+            let moved = false;
+
+            for (let step = 0; step < steps; step++) {
+              let below = currentY + 1;
+
+              if (
+                below < rows &&
+                !obstacleGrid[currentX][below] &&
+                !grid[currentX][below] &&
+                !nextGrid[currentX][below]
+              ) {
+                currentY = below;
+                moved = true;
+              } else {
+                // Log obstacle collision event
+                if (below < rows && obstacleGrid[currentX][below]) {
+                  collisionEvents.push({
+                    x: currentX,
+                    y: currentY,
+                    particle: p,
+                  });
+                }
+                break;
+              }
+            }
+
+            if (!moved) {
+              let below = currentY + 1;
+              let dir = Math.random() < 0.5 ? 1 : -1;
+              let sideA = currentX + dir;
+              let sideB = currentX - dir;
+
+              if (
+                below < rows &&
+                sideA >= 0 &&
+                sideA < cols &&
+                !obstacleGrid[sideA][below] &&
+                !grid[sideA][below] &&
+                !nextGrid[sideA][below]
+              ) {
+                currentX = sideA;
+                currentY = below;
+                moved = true;
+              } else if (
+                below < rows &&
+                sideB >= 0 &&
+                sideB < cols &&
+                !obstacleGrid[sideB][below] &&
+                !grid[sideB][below] &&
+                !nextGrid[sideB][below]
+              ) {
+                currentX = sideB;
+                currentY = below;
+                moved = true;
+              }
+            }
+
+            if (moved) {
+              activeMovementCount++;
+            } else {
+              p.velocity = 1;
+            }
+
+            nextGrid[currentX][currentY] = p;
+          }
+        }
+
+        grid = nextGrid;
+      }
+
+      function render() {
+        buf32.fill(0xff000000);
+
+        for (let x = 0; x < cols; x++) {
+          for (let y = 0; y < rows; y++) {
+            const idx = y * cols + x;
+
+            if (obstacleGrid[x][y]) {
+              buf32[idx] = 0xff555555;
+            } else if (grid[x][y]) {
+              buf32[idx] = grid[x][y].color32;
+            }
+          }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+      }
+
+      function animate() {
+        spawnSand();
+        updateGrid();
+        updateAudio();
+        sendMidiEvents();
+        render();
+        requestAnimationFrame(animate);
+      }
+
+      // --- File Readers & Listeners ---
+      document
+        .getElementById("audioInput")
+        .addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          if (!audioCtx) initAudio();
+
+          const arrayBuffer = await file.arrayBuffer();
+          customBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+          document.getElementById("statusText").textContent =
+            `Loaded Audio: ${file.name.substring(0, 18)}...`;
+        });
+
+      document.getElementById("imageInput").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const tempCanvas = document.createElement("canvas");
+            const tempCtx = tempCanvas.getContext("2d");
+            tempCanvas.width = cols;
+            tempCanvas.height = rows;
+
+            const scale = Math.min(cols / img.width, rows / img.height) * 0.7;
+            const w = img.width * scale;
+            const h = img.height * scale;
+            const x = (cols - w) / 2;
+            const y = (rows - h) / 2;
+
+            tempCtx.drawImage(img, x, y, w, h);
+            const loadedData = tempCtx.getImageData(0, 0, cols, rows).data;
+
+            obstacleGrid = createObstacleGrid();
+
+            for (let r = 0; r < rows; r++) {
+              for (let c = 0; c < cols; c++) {
+                const idx = (r * cols + c) * 4;
+                const alpha = loadedData[idx + 3];
+                const brightness =
+                  (loadedData[idx] +
+                    loadedData[idx + 1] +
+                    loadedData[idx + 2]) /
+                  3;
+
+                if (alpha > 128 && brightness > 30) {
+                  obstacleGrid[c][r] = true;
+                }
+              }
+            }
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      document
+        .getElementById("materialSelect")
+        .addEventListener("change", (e) => {
+          currentMaterial = MATERIALS[e.target.value];
+        });
+
+      document
+        .getElementById("audioToggleBtn")
+        .addEventListener("click", toggleAudio);
+      document
+        .getElementById("midiToggleBtn")
+        .addEventListener("click", toggleMIDI);
+
+      document.getElementById("clearSandBtn").addEventListener("click", () => {
+        grid = createGrid();
+      });
+
+      document
+        .getElementById("clearObstacleBtn")
+        .addEventListener("click", () => {
+          obstacleGrid = createObstacleGrid();
+        });
+
+      window.addEventListener("resize", init);
+
+      canvas.addEventListener("mousedown", (e) => {
+        isMouseDown = true;
+        updateMousePos(e);
+      });
+      canvas.addEventListener("mouseup", () => (isMouseDown = false));
+      canvas.addEventListener("mouseleave", () => (isMouseDown = false));
+      canvas.addEventListener("mousemove", (e) => updateMousePos(e));
+
+      canvas.addEventListener(
+        "touchstart",
+        (e) => {
+          isMouseDown = true;
+          updateTouchPos(e);
+        },
+        { passive: true },
+      );
+      canvas.addEventListener("touchend", () => (isMouseDown = false));
+      canvas.addEventListener("touchmove", (e) => updateTouchPos(e), {
+        passive: true,
+      });
+
+      function updateMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        mouseX = e.clientX - rect.left;
+        mouseY = e.clientY - rect.top;
+      }
+
+      function updateTouchPos(e) {
+        if (e.touches.length > 0) {
+          const rect = canvas.getBoundingClientRect();
+          mouseX = e.touches[0].clientX - rect.left;
+          mouseY = e.touches[0].clientY - rect.top;
+        }
+      }
+
+      init();
+      animate();
+    </script>
+  </body>
+</html>

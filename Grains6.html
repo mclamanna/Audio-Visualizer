@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      Audio Reactive Warp Tunnel Visualizer (320kbps Audio .MOV Export)
+    </title>
+    <style>
+      /* CSS RESET & BASE STYLES */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: #050508;
+        color: #ffffff;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .canvas-container {
+        position: relative;
+        width: 1080px;
+        height: 1080px;
+        max-width: 90vh;
+        max-height: 90vh;
+        aspect-ratio: 1 / 1;
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      #canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .controls-panel {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+        background: rgba(18, 22, 34, 0.85);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 16px 24px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        max-width: 95vw;
+      }
+
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #8a99ad;
+        font-weight: 600;
+      }
+
+      .file-input-wrapper {
+        position: relative;
+        overflow: hidden;
+        display: inline-block;
+      }
+
+      .file-input-wrapper input[type="file"] {
+        font-size: 100px;
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .btn {
+        background: #1f2833;
+        color: #66fcf1;
+        border: 1px solid #45a29e;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .btn:hover {
+        background: #45a29e;
+        color: #0b0c10;
+        box-shadow: 0 0 10px rgba(102, 252, 241, 0.4);
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        border-color: #333;
+        color: #666;
+      }
+
+      .btn-record {
+        border-color: #ff4757;
+        color: #ff4757;
+      }
+
+      .btn-record:hover {
+        background: #ff4757;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(255, 71, 87, 0.4);
+      }
+
+      .btn-record.recording {
+        background: #ff4757;
+        color: #fff;
+        animation: pulse 1.5s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      input[type="range"] {
+        -webkit-appearance: none;
+        width: 90px;
+        background: #1f2833;
+        height: 6px;
+        border-radius: 3px;
+        outline: none;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #66fcf1;
+        cursor: pointer;
+      }
+
+      .status-text {
+        font-size: 12px;
+        color: #66fcf1;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="canvas-container">
+      <canvas id="canvas" width="1080" height="1080"></canvas>
+    </div>
+
+    <div class="controls-panel">
+      <div class="control-group">
+        <div class="file-input-wrapper">
+          <button class="btn" id="file-label-btn">📁 Audio File</button>
+          <input type="file" id="audio-file" accept="audio/*" />
+        </div>
+      </div>
+
+      <button class="btn" id="play-btn" disabled>▶ Play</button>
+
+      <div class="control-group">
+        <label for="speed-control">Tunnel Speed</label>
+        <input
+          type="range"
+          id="speed-control"
+          min="0.2"
+          max="3.0"
+          step="0.1"
+          value="1.0" />
+      </div>
+
+      <div class="control-group">
+        <label for="sensitivity">Bass Force</label>
+        <input
+          type="range"
+          id="sensitivity"
+          min="0.5"
+          max="3.0"
+          step="0.1"
+          value="1.5" />
+      </div>
+
+      <div class="control-group">
+        <label for="particle-count">Grains</label>
+        <input
+          type="range"
+          id="particle-count"
+          min="300"
+          max="2500"
+          step="100"
+          value="1200" />
+      </div>
+
+      <button class="btn btn-record" id="record-btn" disabled>
+        🎥 Record .MOV
+      </button>
+      <div class="status-text" id="status-text"></div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const fileInput = document.getElementById("audio-file");
+      const fileLabelBtn = document.getElementById("file-label-btn");
+      const playBtn = document.getElementById("play-btn");
+      const recordBtn = document.getElementById("record-btn");
+      const statusText = document.getElementById("status-text");
+      const speedInput = document.getElementById("speed-control");
+      const sensitivityInput = document.getElementById("sensitivity");
+      const particleCountInput = document.getElementById("particle-count");
+
+      let audioCtx;
+      let audioBuffer;
+      let audioSource;
+      let analyser;
+      let audioDestinationNode;
+      let frequencyData;
+      let isPlaying = false;
+      let startTime = 0;
+      let startOffset = 0;
+
+      let mediaRecorder;
+      let recordedChunks = [];
+      let isRecording = false;
+
+      let particles = [];
+      let particleCount = parseInt(particleCountInput.value);
+
+      class Particle {
+        constructor() {
+          this.reset(true);
+        }
+
+        reset(randomDist = false) {
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          const maxDist = Math.hypot(centerX, centerY);
+
+          const angle = Math.random() * Math.PI * 2;
+          const dist = randomDist
+            ? Math.random() * maxDist
+            : maxDist * (0.8 + Math.random() * 0.4);
+
+          this.x = centerX + Math.cos(angle) * dist;
+          this.y = centerY + Math.sin(angle) * dist;
+
+          this.prevX = this.x;
+          this.prevY = this.y;
+
+          this.baseSpeed = Math.random() * 2 + 0.8;
+          this.hue = Math.random() * 60 + 180;
+          this.baseSize = Math.random() * 3 + 1;
+          this.size = this.baseSize;
+        }
+
+        update(bassForce, trebleForce, speedMultiplier) {
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+
+          this.prevX = this.x;
+          this.prevY = this.y;
+
+          const dx = centerX - this.x;
+          const dy = centerY - this.y;
+          const dist = Math.hypot(dx, dy);
+
+          const warpSpeed =
+            (this.baseSpeed + bassForce * 22) *
+            speedMultiplier *
+            (1 + 200 / (dist + 20));
+
+          const angle = Math.atan2(dy, dx);
+          this.x += Math.cos(angle) * warpSpeed;
+          this.y += Math.sin(angle) * warpSpeed;
+
+          this.size = Math.max(0.2, this.baseSize * (dist / 500));
+          this.hue = (180 + trebleForce * 160) % 360;
+
+          if (dist < 15) {
+            this.reset(false);
+          }
+        }
+
+        draw() {
+          ctx.beginPath();
+          ctx.moveTo(this.prevX, this.prevY);
+          ctx.lineTo(this.x, this.y);
+          ctx.strokeStyle = `hsla(${this.hue}, 85%, 65%, 0.85)`;
+          ctx.lineWidth = Math.max(0.5, this.size);
+          ctx.stroke();
+        }
+      }
+
+      function initParticles() {
+        particles = [];
+        for (let i = 0; i < particleCount; i++) {
+          particles.push(new Particle());
+        }
+      }
+      initParticles();
+
+      particleCountInput.addEventListener("input", (e) => {
+        particleCount = parseInt(e.target.value);
+        initParticles();
+      });
+
+      fileInput.addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (isPlaying) {
+          pauseAudio();
+          startOffset = 0;
+        }
+
+        fileLabelBtn.textContent = "📁 Loaded!";
+        statusText.textContent = "Ready to play/record";
+        setTimeout(() => (statusText.textContent = ""), 3000);
+
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          const arrayBuffer = evt.target.result;
+
+          if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          }
+
+          audioCtx.decodeAudioData(arrayBuffer, function (buffer) {
+            audioBuffer = buffer;
+            playBtn.disabled = false;
+            recordBtn.disabled = false;
+          });
+        };
+        reader.readAsArrayBuffer(file);
+      });
+
+      function playAudio() {
+        if (!audioBuffer) return;
+
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+
+        if (audioSource) {
+          audioSource.stop();
+        }
+
+        audioSource = audioCtx.createBufferSource();
+        audioSource.buffer = audioBuffer;
+
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        frequencyData = new Uint8Array(analyser.frequencyBinCount);
+
+        audioDestinationNode = audioCtx.createMediaStreamDestination();
+
+        audioSource.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        analyser.connect(audioDestinationNode);
+
+        audioSource.start(0, startOffset);
+        startTime = audioCtx.currentTime - startOffset;
+        isPlaying = true;
+        playBtn.textContent = "⏸ Pause";
+
+        audioSource.onended = () => {
+          if (audioCtx.currentTime - startTime >= audioBuffer.duration) {
+            isPlaying = false;
+            startOffset = 0;
+            playBtn.textContent = "▶ Play";
+            if (isRecording) stopRecording();
+          }
+        };
+      }
+
+      function pauseAudio() {
+        if (audioSource && isPlaying) {
+          audioSource.stop();
+          startOffset = audioCtx.currentTime - startTime;
+          isPlaying = false;
+          playBtn.textContent = "▶ Play";
+        }
+      }
+
+      playBtn.addEventListener("click", () => {
+        if (isPlaying) {
+          pauseAudio();
+        } else {
+          playAudio();
+        }
+      });
+
+      recordBtn.addEventListener("click", () => {
+        if (!isRecording) {
+          if (!isPlaying) {
+            playAudio();
+          }
+          startRecording();
+        } else {
+          stopRecording();
+        }
+      });
+
+      function startRecording() {
+        recordedChunks = [];
+
+        const canvasStream = canvas.captureStream(60);
+
+        const combinedStream = new MediaStream([
+          ...canvasStream.getVideoTracks(),
+          ...audioDestinationNode.stream.getAudioTracks(),
+        ]);
+
+        const mimeTypes = [
+          "video/quicktime",
+          "video/mp4;codecs=avc1,mp4a.40.2",
+          "video/mp4",
+          "video/webm;codecs=h264,opus",
+          "video/webm",
+        ];
+
+        let selectedType =
+          mimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+
+        // High Bitrate Video (30 Mbps) & Maximum Bitrate Audio (320 kbps)
+        const recorderOptions = {
+          mimeType: selectedType,
+          videoBitsPerSecond: 30000000,
+          audioBitsPerSecond: 320000, // Set to 320 kbps for CD/Studio audio quality
+        };
+
+        try {
+          mediaRecorder = new MediaRecorder(combinedStream, recorderOptions);
+        } catch (e) {
+          console.warn(
+            "High bitrate options rejected, falling back to default options:",
+            e,
+          );
+          mediaRecorder = selectedType
+            ? new MediaRecorder(combinedStream, { mimeType: selectedType })
+            : new MediaRecorder(combinedStream);
+        }
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = exportMOV;
+
+        mediaRecorder.start(100);
+        isRecording = true;
+        recordBtn.textContent = "⏹ Stop & Save";
+        recordBtn.classList.add("recording");
+        statusText.textContent = "Recording HD MOV (320kbps Audio)...";
+      }
+
+      function stopRecording() {
+        if (!isRecording) return;
+        mediaRecorder.stop();
+        isRecording = false;
+        recordBtn.textContent = "🎥 Record .MOV";
+        recordBtn.classList.remove("recording");
+        statusText.textContent = "Processing HD .mov file...";
+      }
+
+      function exportMOV() {
+        const blob = new Blob(recordedChunks, { type: "video/quicktime" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = url;
+        a.download = `tunnel_visualizer_1080x1080_HQ.mov`;
+        document.body.appendChild(a);
+        a.click();
+
+        setTimeout(() => {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          statusText.textContent = "Saved as HQ .mov!";
+          setTimeout(() => (statusText.textContent = ""), 3000);
+        }, 100);
+      }
+
+      function animate() {
+        ctx.fillStyle = "rgba(5, 5, 8, 0.25)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        let bassValue = 0;
+        let trebleValue = 0;
+
+        if (isPlaying && analyser) {
+          analyser.getByteFrequencyData(frequencyData);
+
+          let bassSum = 0;
+          for (let i = 0; i < 10; i++) {
+            bassSum += frequencyData[i];
+          }
+          bassValue = bassSum / 10 / 255;
+
+          let trebleSum = 0;
+          for (let i = 40; i < 100; i++) {
+            trebleSum += frequencyData[i];
+          }
+          trebleValue = trebleSum / 60 / 255;
+        }
+
+        const sensitivity = parseFloat(sensitivityInput.value);
+        const speedMultiplier = parseFloat(speedInput.value);
+        const bassForce = bassValue * sensitivity;
+
+        particles.forEach((p) => {
+          p.update(bassForce, trebleValue, speedMultiplier);
+          p.draw();
+        });
+
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+    </script>
+  </body>
+</html>
