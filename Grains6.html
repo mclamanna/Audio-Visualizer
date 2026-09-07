@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>
-      Audio Reactive Visualizer (TikTok 9:16 & Square 1:1 .MOV Export)
+      Audio Reactive Visualizer (YouTube 16:9, TikTok & Square HQ Export)
     </title>
     <style>
       /* CSS RESET & BASE STYLES */
@@ -34,8 +34,8 @@
     */
       .canvas-container {
         position: relative;
-        max-width: 90vh;
-        max-height: 85vh;
+        max-width: 90vw;
+        max-height: 80vh;
         box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
         border-radius: 12px;
         overflow: hidden;
@@ -46,6 +46,12 @@
       }
 
       /* Aspect ratio dynamic helper classes */
+      .canvas-container.ratio-16-9 {
+        width: 100%;
+        height: 100%;
+        aspect-ratio: 16 / 9;
+      }
+
       .canvas-container.ratio-1-1 {
         width: 1080px;
         height: 1080px;
@@ -53,7 +59,7 @@
       }
 
       .canvas-container.ratio-9-16 {
-        width: 607px; /* Scaled down preview width for 1080x1920 */
+        width: 607px;
         height: 1080px;
         aspect-ratio: 9 / 16;
       }
@@ -209,18 +215,19 @@
     </style>
   </head>
   <body>
-    <div class="canvas-container ratio-1-1" id="canvas-wrapper">
-      <!-- Default internal render resolution is 1080x1080 -->
-      <canvas id="canvas" width="1080" height="1080"></canvas>
+    <div class="canvas-container ratio-16-9" id="canvas-wrapper">
+      <!-- Default internal render resolution is 1920x1080 (YouTube 16:9) -->
+      <canvas id="canvas" width="1920" height="1080"></canvas>
     </div>
 
     <div class="controls-panel">
       <!-- Format Selector -->
       <div class="control-group">
-        <label for="aspect-ratio">Size</label>
+        <label for="aspect-ratio">Size & Ratio</label>
         <select id="aspect-ratio">
+          <option value="16:9" selected>YouTube HD (1920x1080)</option>
+          <option value="9:16">TikTok / Shorts (1080x1920)</option>
           <option value="1:1">Square (1080x1080)</option>
-          <option value="9:16">TikTok (1080x1920)</option>
         </select>
       </div>
 
@@ -261,9 +268,9 @@
           type="range"
           id="particle-count"
           min="300"
-          max="2500"
+          max="3000"
           step="100"
-          value="1200" />
+          value="1500" />
       </div>
 
       <button class="btn btn-record" id="record-btn" disabled>
@@ -305,20 +312,24 @@
       let particleCount = parseInt(particleCountInput.value);
 
       // ==========================================
-      // ASPECT RATIO SWITCHER (TikTok 9:16 vs Square 1:1)
+      // ASPECT RATIO SWITCHER (YouTube 16:9, TikTok 9:16, Square 1:1)
       // ==========================================
       aspectRatioSelect.addEventListener("change", (e) => {
         const mode = e.target.value;
-        if (mode === "9:16") {
+        if (mode === "16:9") {
+          canvas.width = 1920;
+          canvas.height = 1080;
+          canvasWrapper.className = "canvas-container ratio-16-9";
+        } else if (mode === "9:16") {
           canvas.width = 1080;
-          canvas.height = 1920; // Native vertical TikTok resolution
+          canvas.height = 1920;
           canvasWrapper.className = "canvas-container ratio-9-16";
         } else {
           canvas.width = 1080;
-          canvas.height = 1080; // Standard Square resolution
+          canvas.height = 1080;
           canvasWrapper.className = "canvas-container ratio-1-1";
         }
-        initParticles(); // Re-center and adjust particle positions
+        initParticles(); // Re-center physics engine
       });
 
       class Particle {
@@ -517,17 +528,18 @@
         let selectedType =
           mimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) || "";
 
+        // High Quality Settings: 50 Mbps Video / 320 kbps Audio
         const recorderOptions = {
           mimeType: selectedType,
-          videoBitsPerSecond: 30000000,
-          audioBitsPerSecond: 320000, // 320 kbps Studio Audio
+          videoBitsPerSecond: 50000000,
+          audioBitsPerSecond: 320000,
         };
 
         try {
           mediaRecorder = new MediaRecorder(combinedStream, recorderOptions);
         } catch (e) {
           console.warn(
-            "High bitrate options rejected, falling back to default options:",
+            "Ultra High bitrate options rejected, falling back to default options:",
             e,
           );
           mediaRecorder = selectedType
@@ -545,7 +557,7 @@
         isRecording = true;
         recordBtn.textContent = "⏹ Stop & Save";
         recordBtn.classList.add("recording");
-        statusText.textContent = "Recording MOV...";
+        statusText.textContent = "Recording Max Quality MOV...";
       }
 
       function stopRecording() {
@@ -564,11 +576,8 @@
         a.style.display = "none";
         a.href = url;
 
-        const mode =
-          aspectRatioSelect.value === "9:16"
-            ? "TikTok_1080x1920"
-            : "Square_1080x1080";
-        a.download = `tunnel_visualizer_${mode}.mov`;
+        const mode = aspectRatioSelect.value.replace(":", "x");
+        a.download = `tunnel_visualizer_HQ_${mode}.mov`;
 
         document.body.appendChild(a);
         a.click();
