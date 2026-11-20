@@ -1,0 +1,1700 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>オーディオリアクティブ・サイバーパンク都市ビジュアライザー</title>
+    <style>
+      /* CSS RESET & BASE STYLES */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: #050508;
+        color: #ffffff;
+        font-family:
+          "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP",
+          sans-serif;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      /* 
+        CANVAS CONTAINER:
+        Dynamically resizes visually while preserving internal rendering resolution 
+      */
+      .canvas-container {
+        position: relative;
+        max-width: 92vw;
+        max-height: 76vh;
+        box-shadow:
+          0 0 60px rgba(255, 0, 127, 0.2),
+          0 0 50px rgba(0, 0, 0, 0.9);
+        border: 1px solid rgba(102, 252, 241, 0.18);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.3s ease;
+      }
+
+      /* Aspect ratio dynamic helper classes */
+      .canvas-container.ratio-16-9 {
+        width: 100%;
+        height: 100%;
+        aspect-ratio: 16 / 9;
+      }
+
+      .canvas-container.ratio-1-1 {
+        width: 1080px;
+        height: 1080px;
+        aspect-ratio: 1 / 1;
+      }
+
+      .canvas-container.ratio-9-16 {
+        width: 607px;
+        height: 1080px;
+        aspect-ratio: 9 / 16;
+      }
+
+      #canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      /* TikTok Settings Drawer */
+      .tiktok-drawer {
+        position: absolute;
+        bottom: 92px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 15;
+        background: rgba(14, 16, 28, 0.95);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 0, 127, 0.45);
+        border-radius: 16px;
+        padding: 14px 18px;
+        display: none;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        box-shadow:
+          0 10px 40px rgba(0, 0, 0, 0.8),
+          0 0 20px rgba(255, 0, 127, 0.25);
+        max-width: 94vw;
+      }
+
+      .tiktok-drawer.open {
+        display: flex;
+      }
+
+      .drawer-badge {
+        font-size: 11px;
+        font-weight: 800;
+        color: #ff66b2;
+        letter-spacing: 0.8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border-right: 1px solid rgba(255, 255, 255, 0.12);
+        padding-right: 12px;
+      }
+
+      .controls-panel {
+        position: absolute;
+        bottom: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+        background: rgba(14, 16, 28, 0.9);
+        backdrop-filter: blur(14px);
+        border: 1px solid rgba(102, 252, 241, 0.22);
+        border-radius: 16px;
+        padding: 12px 18px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.65);
+        max-width: 96vw;
+      }
+
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #8a99ad;
+        font-weight: 600;
+      }
+
+      select,
+      input[type="text"] {
+        background: #1a2030;
+        color: #66fcf1;
+        border: 1px solid #45a29e;
+        padding: 7px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        outline: none;
+      }
+
+      select {
+        cursor: pointer;
+      }
+
+      input[type="text"] {
+        width: 155px;
+      }
+
+      input[type="text"]::placeholder {
+        color: #55667a;
+      }
+
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #e0e6ed;
+        cursor: pointer;
+        user-select: none;
+        padding-top: 2px;
+      }
+
+      .checkbox-row input[type="checkbox"] {
+        accent-color: #ff007f;
+        width: 15px;
+        height: 15px;
+        cursor: pointer;
+      }
+
+      .file-input-wrapper {
+        position: relative;
+        overflow: hidden;
+        display: inline-block;
+      }
+
+      .file-input-wrapper input[type="file"] {
+        font-size: 100px;
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .btn {
+        background: #1a2030;
+        color: #66fcf1;
+        border: 1px solid #45a29e;
+        padding: 8px 13px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+
+      .btn:hover:not(:disabled) {
+        background: #45a29e;
+        color: #0b0c10;
+        box-shadow: 0 0 12px rgba(102, 252, 241, 0.45);
+      }
+
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        border-color: #333;
+        color: #666;
+      }
+
+      .btn-demo {
+        border-color: #ff007f;
+        color: #ff66b2;
+      }
+
+      .btn-demo:hover:not(:disabled),
+      .btn-demo.active {
+        background: #ff007f;
+        color: #ffffff;
+        box-shadow: 0 0 14px rgba(255, 0, 127, 0.55);
+      }
+
+      .btn-tiktok {
+        border-color: #00f2fe;
+        color: #00f2fe;
+        background: linear-gradient(
+          135deg,
+          rgba(0, 242, 254, 0.12),
+          rgba(255, 0, 80, 0.12)
+        );
+      }
+
+      .btn-tiktok:hover,
+      .btn-tiktok.active {
+        background: linear-gradient(135deg, #00f2fe, #ff0050);
+        color: #ffffff;
+        border-color: transparent;
+        box-shadow: 0 0 14px rgba(0, 242, 254, 0.45);
+      }
+
+      .btn-record {
+        border-color: #ff4757;
+        color: #ff4757;
+      }
+
+      .btn-record:hover:not(:disabled) {
+        background: #ff4757;
+        color: #fff;
+        box-shadow: 0 0 12px rgba(255, 71, 87, 0.45);
+      }
+
+      .btn-record.recording {
+        background: #ff4757;
+        color: #fff;
+        animation: pulse 1.5s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.55;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      input[type="range"] {
+        -webkit-appearance: none;
+        width: 78px;
+        background: #1f2833;
+        height: 6px;
+        border-radius: 3px;
+        outline: none;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #66fcf1;
+        cursor: pointer;
+        box-shadow: 0 0 6px rgba(102, 252, 241, 0.8);
+      }
+
+      .status-text {
+        font-size: 11px;
+        color: #66fcf1;
+        font-weight: 600;
+        min-width: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="canvas-container ratio-16-9" id="canvas-wrapper">
+      <!-- Default internal render resolution is 1920x1080 (YouTube 16:9) -->
+      <canvas id="canvas" width="1920" height="1080"></canvas>
+    </div>
+
+    <!-- TikTok Specific Settings Drawer -->
+    <div class="tiktok-drawer" id="tiktok-drawer">
+      <div class="drawer-badge">🎵 TikTok 最適化設定</div>
+
+      <button class="btn btn-tiktok" id="tiktok-preset-btn">
+        📱 9:16 縦画面プリセット適用
+      </button>
+
+      <div class="control-group">
+        <label for="tiktok-title">フック見出し (上部表示)</label>
+        <input
+          type="text"
+          id="tiktok-title"
+          placeholder="例: 深夜のネオ東京BGM 🎧"
+          value="" />
+      </div>
+
+      <div class="control-group">
+        <label for="tiktok-handle">アカウント名 (@ID)</label>
+        <input
+          type="text"
+          id="tiktok-handle"
+          placeholder="例: @neotokyo_beats"
+          value="" />
+      </div>
+
+      <div class="control-group">
+        <label for="tiktok-duration">自動録画タイマー</label>
+        <select id="tiktok-duration">
+          <option value="0" selected>手動停止</option>
+          <option value="15">15秒 (ショート)</option>
+          <option value="30">30秒 (標準)</option>
+          <option value="60">60秒 (ロング)</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>UIガイド (録画時は非表示)</label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="tiktok-safezone" />
+          セーフゾーン表示
+        </label>
+      </div>
+    </div>
+
+    <div class="controls-panel">
+      <!-- Format Selector -->
+      <div class="control-group">
+        <label for="aspect-ratio">画面比率・解像度</label>
+        <select id="aspect-ratio">
+          <option value="16:9" selected>YouTube 横画面 HD (1920x1080)</option>
+          <option value="9:16">TikTok / ショート縦画面 (1080x1920)</option>
+          <option value="1:1">スクエア正方形 (1080x1080)</option>
+        </select>
+      </div>
+
+      <button class="btn btn-tiktok" id="tiktok-toggle-btn">
+        🎵 TikTok設定
+      </button>
+
+      <div class="control-group">
+        <div class="file-input-wrapper">
+          <button class="btn" id="file-label-btn">📁 音源ファイル</button>
+          <input type="file" id="audio-file" accept="audio/*" />
+        </div>
+      </div>
+
+      <button class="btn" id="play-btn" disabled>▶ 再生</button>
+      <button class="btn btn-demo" id="demo-btn">🎹 シンセデモ再生</button>
+
+      <div class="control-group">
+        <label for="speed-control">スクロール速度</label>
+        <input
+          type="range"
+          id="speed-control"
+          min="0.0"
+          max="3.0"
+          step="0.1"
+          value="1.0" />
+      </div>
+
+      <div class="control-group">
+        <label for="sensitivity">重低音リアクション</label>
+        <input
+          type="range"
+          id="sensitivity"
+          min="0.5"
+          max="3.0"
+          step="0.1"
+          value="1.5" />
+      </div>
+
+      <div class="control-group">
+        <label for="particle-count">雨粒・粒子密度</label>
+        <input
+          type="range"
+          id="particle-count"
+          min="200"
+          max="2500"
+          step="100"
+          value="1200" />
+      </div>
+
+      <button class="btn btn-record" id="record-btn" disabled>
+        🎥 .MOV録画
+      </button>
+      <div class="status-text" id="status-text"></div>
+    </div>
+
+    <script>
+      // ==========================================
+      // DOM ELEMENTS & AUDIO / RECORDING STATE
+      // ==========================================
+      const canvasWrapper = document.getElementById("canvas-wrapper");
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const aspectRatioSelect = document.getElementById("aspect-ratio");
+      const fileInput = document.getElementById("audio-file");
+      const fileLabelBtn = document.getElementById("file-label-btn");
+      const playBtn = document.getElementById("play-btn");
+      const demoBtn = document.getElementById("demo-btn");
+      const recordBtn = document.getElementById("record-btn");
+      const statusText = document.getElementById("status-text");
+      const speedInput = document.getElementById("speed-control");
+      const sensitivityInput = document.getElementById("sensitivity");
+      const particleCountInput = document.getElementById("particle-count");
+
+      // TikTok UI Elements
+      const tiktokToggleBtn = document.getElementById("tiktok-toggle-btn");
+      const tiktokDrawer = document.getElementById("tiktok-drawer");
+      const tiktokPresetBtn = document.getElementById("tiktok-preset-btn");
+      const tiktokTitleInput = document.getElementById("tiktok-title");
+      const tiktokHandleInput = document.getElementById("tiktok-handle");
+      const tiktokDurationSelect = document.getElementById("tiktok-duration");
+      const tiktokSafezoneCheckbox = document.getElementById("tiktok-safezone");
+
+      let audioCtx;
+      let audioBuffer;
+      let audioSource;
+      let analyser;
+      let audioDestinationNode;
+      let frequencyData;
+      let isPlaying = false;
+      let isDemoPlaying = false;
+      let demoTimer = null;
+      let startTime = 0;
+      let startOffset = 0;
+      let trackName = "ネオ東京・深夜放送 // 周波数解析";
+
+      let mediaRecorder;
+      let recordedChunks = [];
+      let isRecording = false;
+      let recordAutoStopTimer = null;
+      let recordCountdownInterval = null;
+
+      // ==========================================
+      // CYBERPUNK SKYLINE SCENE DATA STRUCTURES
+      // ==========================================
+      let stars = [];
+      let rainDrops = [];
+      let cityLayers = [[], [], []]; // 0: Distant, 1: Midground, 2: Foreground
+      let trafficCars = [];
+      let fogClouds = [];
+      let frameTick = 0;
+
+      const NEON_PALETTE = [
+        { primary: "#00f3ff", glow: "rgba(0, 243, 255, 0.65)" }, // Electric Cyan
+        { primary: "#ff007f", glow: "rgba(255, 0, 127, 0.65)" }, // Hot Magenta
+        { primary: "#b829ea", glow: "rgba(184, 41, 234, 0.65)" }, // Cyber Violet
+        { primary: "#ffbe0b", glow: "rgba(255, 190, 11, 0.65)" }, // Neon Amber
+      ];
+
+      const CYBER_GLYPHS = [
+        "ネオ東京",
+        "電脳都市",
+        "深夜放送",
+        "未来夢",
+        "合成波",
+        "サイバー",
+        "無限回廊",
+        "光速通信",
+        "幻想夜",
+        "零式",
+      ];
+
+      // ==========================================
+      // ASPECT RATIO & TIKTOK SETTINGS HANDLERS
+      // ==========================================
+      function applyAspectRatio(mode) {
+        aspectRatioSelect.value = mode;
+        if (mode === "16:9") {
+          canvas.width = 1920;
+          canvas.height = 1080;
+          canvasWrapper.className = "canvas-container ratio-16-9";
+        } else if (mode === "9:16") {
+          canvas.width = 1080;
+          canvas.height = 1920;
+          canvasWrapper.className = "canvas-container ratio-9-16";
+        } else {
+          canvas.width = 1080;
+          canvas.height = 1080;
+          canvasWrapper.className = "canvas-container ratio-1-1";
+        }
+        initCityScene();
+      }
+
+      aspectRatioSelect.addEventListener("change", (e) => {
+        applyAspectRatio(e.target.value);
+      });
+
+      tiktokToggleBtn.addEventListener("click", () => {
+        tiktokDrawer.classList.toggle("open");
+        tiktokToggleBtn.classList.toggle("active");
+      });
+
+      tiktokPresetBtn.addEventListener("click", () => {
+        applyAspectRatio("9:16");
+        tiktokSafezoneCheckbox.checked = true;
+        if (tiktokDurationSelect.value === "0") {
+          tiktokDurationSelect.value = "15";
+        }
+        particleCountInput.value = 1500;
+        initAtmosphere();
+        statusText.textContent = "TikTok 9:16 プリセット適用！";
+        setTimeout(() => (statusText.textContent = ""), 3000);
+      });
+
+      // ==========================================
+      // PROCEDURAL CYBERPUNK CITY GENERATOR
+      // ==========================================
+      function createBuilding(x, layerIdx, horizonY) {
+        const isDistant = layerIdx === 0;
+        const isMid = layerIdx === 1;
+
+        const minW = isDistant ? 55 : isMid ? 75 : 95;
+        const maxW = isDistant ? 110 : isMid ? 145 : 185;
+        const w = Math.floor(Math.random() * (maxW - minW) + minW);
+
+        const heightScale = canvas.height / 1080;
+        const minH = (isDistant ? 180 : isMid ? 130 : 80) * heightScale;
+        const maxH = (isDistant ? 420 : isMid ? 330 : 240) * heightScale;
+        const baseH = Math.floor(Math.random() * (maxH - minH) + minH);
+
+        const neonTheme =
+          NEON_PALETTE[Math.floor(Math.random() * NEON_PALETTE.length)];
+
+        // Roof architectural style: 0=flat, 1=stepped/tiered, 2=slanted, 3=spire
+        const roofType = Math.floor(Math.random() * 4);
+
+        const cols = Math.max(2, Math.floor((w - 20) / 14));
+        const rows = Math.max(4, Math.floor((baseH - 24) / 16));
+        const windowPattern = [];
+        for (let r = 0; r < rows; r++) {
+          const rowArr = [];
+          const litBand = Math.random() > 0.35;
+          for (let c = 0; c < cols; c++) {
+            rowArr.push(litBand && Math.random() > 0.42 ? 1 : 0);
+          }
+          windowPattern.push(rowArr);
+        }
+
+        return {
+          x,
+          w,
+          baseH,
+          layerIdx,
+          roofType,
+          neonTheme,
+          freqBin: Math.floor(Math.random() * 64) + 2,
+          hasAntenna: Math.random() > 0.45,
+          antennaH: Math.random() * 45 + 20,
+          hasSign: !isDistant && Math.random() > 0.52,
+          signText:
+            CYBER_GLYPHS[Math.floor(Math.random() * CYBER_GLYPHS.length)],
+          signSide: Math.random() > 0.5 ? "left" : "right",
+          hasEqualizerCrown: isMid && Math.random() > 0.55,
+          windowPattern,
+          cols,
+          rows,
+          pulsePhase: Math.random() * Math.PI * 2,
+        };
+      }
+
+      function initAtmosphere() {
+        const count = parseInt(particleCountInput.value);
+        const starCount = Math.floor(count * 0.25);
+        const rainCount = Math.floor(count * 0.75);
+        const horizonY = canvas.height * 0.74;
+
+        stars = [];
+        for (let i = 0; i < starCount; i++) {
+          stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * (horizonY * 0.85),
+            size: Math.random() * 2.4 + 0.6,
+            phase: Math.random() * Math.PI * 2,
+            speed: Math.random() * 0.03 + 0.01,
+            tint: Math.random() > 0.7 ? "#66fcf1" : "#ffffff",
+          });
+        }
+
+        rainDrops = [];
+        for (let i = 0; i < rainCount; i++) {
+          rainDrops.push({
+            x: Math.random() * (canvas.width + 300) - 150,
+            y: Math.random() * horizonY,
+            len: Math.random() * 22 + 10,
+            speed: Math.random() * 9 + 11,
+            alpha: Math.random() * 0.25 + 0.08,
+          });
+        }
+      }
+
+      function initCityScene() {
+        const horizonY = canvas.height * 0.74;
+        initAtmosphere();
+
+        const totalSpan = canvas.width * 1.6;
+        for (let layer = 0; layer < 3; layer++) {
+          cityLayers[layer] = [];
+          let curX = -150;
+          while (curX < totalSpan) {
+            const b = createBuilding(curX, layer, horizonY);
+            cityLayers[layer].push(b);
+            const gap = layer === 0 ? -12 : layer === 1 ? 6 : 18;
+            curX += b.w + gap;
+          }
+        }
+
+        trafficCars = [];
+        const carCount = 26;
+        for (let i = 0; i < carCount; i++) {
+          const goingRight = Math.random() > 0.5;
+          trafficCars.push({
+            x: Math.random() * canvas.width,
+            y: horizonY - (Math.random() * (horizonY * 0.52) + 25),
+            speed: (Math.random() * 3.5 + 2.2) * (goingRight ? 1 : -1),
+            length: Math.random() * 45 + 20,
+            color: goingRight ? "#00f3ff" : "#ff0055",
+            layer: Math.floor(Math.random() * 2),
+          });
+        }
+
+        fogClouds = [];
+        for (let i = 0; i < 6; i++) {
+          fogClouds.push({
+            x: Math.random() * canvas.width,
+            y: horizonY - Math.random() * 140,
+            radius: Math.random() * 280 + 180,
+            speed: (Math.random() * 0.4 + 0.15) * (i % 2 === 0 ? 1 : -1),
+            color:
+              i % 2 === 0
+                ? "rgba(255, 0, 127, 0.07)"
+                : "rgba(0, 243, 255, 0.06)",
+          });
+        }
+      }
+
+      initCityScene();
+      particleCountInput.addEventListener("input", initAtmosphere);
+
+      // ==========================================
+      // AUDIO ENGINE (FILE LOADER + DEMO BEAT)
+      // ==========================================
+      function ensureAudioContext() {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+        if (!analyser) {
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          analyser.smoothingTimeConstant = 0.8;
+          frequencyData = new Uint8Array(analyser.frequencyBinCount);
+          audioDestinationNode = audioCtx.createMediaStreamDestination();
+          analyser.connect(audioCtx.destination);
+          analyser.connect(audioDestinationNode);
+        }
+      }
+
+      fileInput.addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        stopDemoBeat();
+        if (isPlaying) {
+          pauseAudio();
+          startOffset = 0;
+        }
+
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").slice(0, 18);
+        trackName = `音源 // ${cleanName}`;
+        fileLabelBtn.textContent = "📁 読込完了！";
+        statusText.textContent = "再生・録画の準備完了";
+        setTimeout(() => (statusText.textContent = ""), 3000);
+
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          ensureAudioContext();
+          audioCtx.decodeAudioData(evt.target.result, function (buffer) {
+            audioBuffer = buffer;
+            playBtn.disabled = false;
+            recordBtn.disabled = false;
+          });
+        };
+        reader.readAsArrayBuffer(file);
+      });
+
+      function playAudio() {
+        if (!audioBuffer) return;
+        stopDemoBeat();
+        ensureAudioContext();
+
+        if (audioSource) {
+          try {
+            audioSource.stop();
+          } catch (e) {}
+        }
+
+        audioSource = audioCtx.createBufferSource();
+        audioSource.buffer = audioBuffer;
+        audioSource.connect(analyser);
+
+        audioSource.start(0, startOffset);
+        startTime = audioCtx.currentTime - startOffset;
+        isPlaying = true;
+        playBtn.textContent = "⏸ 一時停止";
+        recordBtn.disabled = false;
+
+        audioSource.onended = () => {
+          if (
+            isPlaying &&
+            audioCtx.currentTime - startTime >= audioBuffer.duration - 0.05
+          ) {
+            isPlaying = false;
+            startOffset = 0;
+            playBtn.textContent = "▶ 再生";
+            if (isRecording) stopRecording();
+          }
+        };
+      }
+
+      function pauseAudio() {
+        if (audioSource && isPlaying) {
+          try {
+            audioSource.stop();
+          } catch (e) {}
+          startOffset = audioCtx.currentTime - startTime;
+          isPlaying = false;
+          playBtn.textContent = "▶ 再生";
+        }
+      }
+
+      playBtn.addEventListener("click", () => {
+        if (isPlaying) {
+          pauseAudio();
+        } else {
+          playAudio();
+        }
+      });
+
+      function startDemoBeat() {
+        if (isPlaying) pauseAudio();
+        ensureAudioContext();
+
+        isDemoPlaying = true;
+        trackName = "シンセウェーブ・デモ音源 // 108BPM";
+        demoBtn.textContent = "⏹ デモ停止";
+        demoBtn.classList.add("active");
+        recordBtn.disabled = false;
+
+        let step = 0;
+        const bassNotes = [55, 55, 65.41, 65.41, 43.65, 43.65, 49.0, 49.0];
+        const arpNotes = [
+          220, 261.63, 329.63, 392.0, 440, 392.0, 329.63, 261.63,
+        ];
+
+        function triggerStep() {
+          if (!isDemoPlaying) return;
+          const now = audioCtx.currentTime;
+
+          if (step % 4 === 0) {
+            const kickOsc = audioCtx.createOscillator();
+            const kickGain = audioCtx.createGain();
+            kickOsc.type = "sine";
+            kickOsc.frequency.setValueAtTime(140, now);
+            kickOsc.frequency.exponentialRampToValueAtTime(36, now + 0.14);
+
+            kickGain.gain.setValueAtTime(0.65, now);
+            kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+            kickOsc.connect(kickGain);
+            kickGain.connect(analyser);
+            kickOsc.start(now);
+            kickOsc.stop(now + 0.26);
+          }
+
+          if (step % 8 === 4) {
+            const bufferSize = audioCtx.sampleRate * 0.22;
+            const noiseBuffer = audioCtx.createBuffer(
+              1,
+              bufferSize,
+              audioCtx.sampleRate,
+            );
+            const data = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+              data[i] = Math.random() * 2 - 1;
+            }
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = noiseBuffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = "bandpass";
+            filter.frequency.value = 1400;
+
+            const snareGain = audioCtx.createGain();
+            snareGain.gain.setValueAtTime(0.45, now);
+            snareGain.gain.exponentialRampToValueAtTime(0.001, now + 0.21);
+
+            noise.connect(filter);
+            filter.connect(snareGain);
+            snareGain.connect(analyser);
+            noise.start(now);
+          }
+
+          const bassOsc = audioCtx.createOscillator();
+          const bassFilter = audioCtx.createBiquadFilter();
+          const bassGain = audioCtx.createGain();
+
+          bassOsc.type = "sawtooth";
+          const rootFreq = bassNotes[Math.floor(step / 2) % bassNotes.length];
+          bassOsc.frequency.setValueAtTime(
+            step % 2 === 1 ? rootFreq * 2 : rootFreq,
+            now,
+          );
+
+          bassFilter.type = "lowpass";
+          bassFilter.frequency.setValueAtTime(520, now);
+          bassFilter.frequency.exponentialRampToValueAtTime(140, now + 0.12);
+
+          bassGain.gain.setValueAtTime(0.24, now);
+          bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+
+          bassOsc.connect(bassFilter);
+          bassFilter.connect(bassGain);
+          bassGain.connect(analyser);
+          bassOsc.start(now);
+          bassOsc.stop(now + 0.14);
+
+          const arpOsc = audioCtx.createOscillator();
+          const arpGain = audioCtx.createGain();
+          arpOsc.type = "triangle";
+          arpOsc.frequency.setValueAtTime(
+            arpNotes[step % arpNotes.length] * (step % 16 > 11 ? 1.5 : 1),
+            now,
+          );
+          arpGain.gain.setValueAtTime(0.11, now);
+          arpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+          arpOsc.connect(arpGain);
+          arpGain.connect(analyser);
+          arpOsc.start(now);
+          arpOsc.stop(now + 0.13);
+
+          step = (step + 1) % 16;
+        }
+
+        triggerStep();
+        demoTimer = setInterval(triggerStep, 138);
+      }
+
+      function stopDemoBeat() {
+        isDemoPlaying = false;
+        if (demoTimer) {
+          clearInterval(demoTimer);
+          demoTimer = null;
+        }
+        demoBtn.textContent = "🎹 シンセデモ再生";
+        demoBtn.classList.remove("active");
+        if (!audioBuffer) {
+          recordBtn.disabled = true;
+        }
+      }
+
+      demoBtn.addEventListener("click", () => {
+        if (isDemoPlaying) {
+          stopDemoBeat();
+        } else {
+          startDemoBeat();
+        }
+      });
+
+      // ==========================================
+      // HIGH-QUALITY .MOV / VIDEO RECORDING
+      // ==========================================
+      recordBtn.addEventListener("click", () => {
+        if (!isRecording) {
+          if (!isPlaying && !isDemoPlaying) {
+            if (audioBuffer) playAudio();
+            else startDemoBeat();
+          }
+          startRecording();
+        } else {
+          stopRecording();
+        }
+      });
+
+      function startRecording() {
+        recordedChunks = [];
+        const canvasStream = canvas.captureStream(60);
+        const combinedStream = new MediaStream([
+          ...canvasStream.getVideoTracks(),
+          ...audioDestinationNode.stream.getAudioTracks(),
+        ]);
+
+        const mimeTypes = [
+          "video/quicktime",
+          "video/mp4;codecs=avc1,mp4a.40.2",
+          "video/mp4",
+          "video/webm;codecs=h264,opus",
+          "video/webm",
+        ];
+
+        const selectedType =
+          mimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+
+        const recorderOptions = {
+          mimeType: selectedType,
+          videoBitsPerSecond: 50000000,
+          audioBitsPerSecond: 320000,
+        };
+
+        try {
+          mediaRecorder = new MediaRecorder(combinedStream, recorderOptions);
+        } catch (e) {
+          mediaRecorder = selectedType
+            ? new MediaRecorder(combinedStream, { mimeType: selectedType })
+            : new MediaRecorder(combinedStream);
+        }
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = exportMOV;
+        mediaRecorder.start(100);
+        isRecording = true;
+        recordBtn.textContent = "⏹ 停止して保存";
+        recordBtn.classList.add("recording");
+
+        // TikTok Auto-Stop Timer
+        const durationSec = parseInt(tiktokDurationSelect.value, 10);
+        if (durationSec > 0) {
+          let remaining = durationSec;
+          statusText.textContent = `TikTok録画中... 残り ${remaining}秒`;
+          recordCountdownInterval = setInterval(() => {
+            remaining--;
+            if (remaining > 0 && isRecording) {
+              statusText.textContent = `TikTok録画中... 残り ${remaining}秒`;
+            }
+          }, 1000);
+
+          recordAutoStopTimer = setTimeout(() => {
+            if (isRecording) stopRecording();
+          }, durationSec * 1000);
+        } else {
+          statusText.textContent = "最高画質 .MOV 録画中...";
+        }
+      }
+
+      function stopRecording() {
+        if (!isRecording) return;
+        clearTimeout(recordAutoStopTimer);
+        clearInterval(recordCountdownInterval);
+        mediaRecorder.stop();
+        isRecording = false;
+        recordBtn.textContent = "🎥 .MOV録画";
+        recordBtn.classList.remove("recording");
+        statusText.textContent = "HD .mov ファイルを書き出し中...";
+      }
+
+      function exportMOV() {
+        const blob = new Blob(recordedChunks, { type: "video/quicktime" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = url;
+
+        const mode = aspectRatioSelect.value.replace(":", "x");
+        const prefix =
+          mode === "9x16" ? "TikTok_ネオ東京" : "ネオ東京_サイバーパンク都市";
+        a.download = `${prefix}_${mode}.mov`;
+
+        document.body.appendChild(a);
+        a.click();
+
+        setTimeout(() => {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          statusText.textContent = "高画質 .mov を保存しました！";
+          setTimeout(() => (statusText.textContent = ""), 3000);
+        }, 100);
+      }
+
+      // ==========================================
+      // RENDER PIPELINE: CYBERPUNK CITY SKYLINE
+      // ==========================================
+      function drawSkyAndMoon(bassForce, trebleForce, horizonY) {
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+        skyGrad.addColorStop(0, "#04010c");
+        skyGrad.addColorStop(0.45, "#11052c");
+        skyGrad.addColorStop(0.8, "#2b0945");
+        skyGrad.addColorStop(1, "#4c0d52");
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, canvas.width, horizonY);
+
+        stars.forEach((s) => {
+          s.phase += s.speed;
+          const alpha =
+            (0.35 + 0.65 * Math.abs(Math.sin(s.phase))) *
+            (0.7 + trebleForce * 0.6);
+          ctx.fillStyle = s.tint;
+          ctx.globalAlpha = Math.min(1, alpha);
+          ctx.fillRect(s.x, s.y, s.size, s.size);
+        });
+        ctx.globalAlpha = 1;
+
+        const sunX = canvas.width * 0.5;
+        const baseRadius = Math.min(canvas.width, canvas.height) * 0.21;
+        const radius = baseRadius + bassForce * 28;
+        const sunY = horizonY - baseRadius * 0.95;
+
+        ctx.save();
+        const halo = ctx.createRadialGradient(
+          sunX,
+          sunY,
+          radius * 0.6,
+          sunX,
+          sunY,
+          radius * 2.2,
+        );
+        halo.addColorStop(0, "rgba(255, 0, 127, 0.35)");
+        halo.addColorStop(0.5, "rgba(138, 43, 226, 0.14)");
+        halo.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, radius * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (trebleForce > 0.42) {
+          const shift = (trebleForce - 0.42) * 26;
+          ctx.fillStyle = "rgba(0, 243, 255, 0.45)";
+          ctx.beginPath();
+          ctx.arc(sunX - shift, sunY, radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = "rgba(255, 0, 127, 0.45)";
+          ctx.beginPath();
+          ctx.arc(sunX + shift, sunY, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        const sunGrad = ctx.createLinearGradient(
+          0,
+          sunY - radius,
+          0,
+          sunY + radius,
+        );
+        sunGrad.addColorStop(0, "#ffe600");
+        sunGrad.addColorStop(0.55, "#ff5e00");
+        sunGrad.addColorStop(1, "#ff007f");
+
+        ctx.fillStyle = sunGrad;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#24073b";
+        const stripes = 6;
+        for (let i = 0; i < stripes; i++) {
+          const t = i / stripes;
+          const sy = sunY + radius * 0.08 + t * (radius * 0.82);
+          const sh = 2 + t * 11 + bassForce * 3.5;
+          ctx.fillRect(sunX - radius - 8, sy, radius * 2 + 16, sh);
+        }
+        ctx.restore();
+      }
+
+      function drawFogLayer(horizonY, speedMult) {
+        fogClouds.forEach((f) => {
+          f.x += f.speed * (0.4 + speedMult * 0.6);
+          if (f.x - f.radius > canvas.width) f.x = -f.radius;
+          if (f.x + f.radius < 0) f.x = canvas.width + f.radius;
+
+          const grad = ctx.createRadialGradient(
+            f.x,
+            f.y,
+            10,
+            f.x,
+            f.y,
+            f.radius,
+          );
+          grad.addColorStop(0, f.color);
+          grad.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(
+            f.x - f.radius,
+            f.y - f.radius,
+            f.radius * 2,
+            f.radius * 2,
+          );
+        });
+      }
+
+      function drawBuilding(b, horizonY, bassForce, trebleForce) {
+        let binEnergy = 0;
+        if ((isPlaying || isDemoPlaying) && frequencyData) {
+          binEnergy = frequencyData[b.freqBin] / 255;
+        }
+
+        const layerReactScale =
+          b.layerIdx === 0 ? 75 : b.layerIdx === 1 ? 55 : 35;
+        const dynamicH =
+          b.baseH + binEnergy * layerReactScale * (0.6 + bassForce * 0.5);
+        const topY = horizonY - dynamicH;
+
+        const bodyColor =
+          b.layerIdx === 0
+            ? "#120929"
+            : b.layerIdx === 1
+              ? "#0a061a"
+              : "#05030d";
+
+        ctx.fillStyle = bodyColor;
+
+        ctx.beginPath();
+        if (b.roofType === 1) {
+          const stepW = b.w * 0.22;
+          const stepH = 18;
+          ctx.moveTo(b.x, horizonY);
+          ctx.lineTo(b.x, topY + stepH);
+          ctx.lineTo(b.x + stepW, topY + stepH);
+          ctx.lineTo(b.x + stepW, topY);
+          ctx.lineTo(b.x + b.w - stepW, topY);
+          ctx.lineTo(b.x + b.w - stepW, topY + stepH);
+          ctx.lineTo(b.x + b.w, topY + stepH);
+          ctx.lineTo(b.x + b.w, horizonY);
+        } else if (b.roofType === 2) {
+          ctx.moveTo(b.x, horizonY);
+          ctx.lineTo(b.x, topY + 24);
+          ctx.lineTo(b.x + b.w, topY);
+          ctx.lineTo(b.x + b.w, horizonY);
+        } else {
+          ctx.rect(b.x, topY, b.w, dynamicH);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = b.neonTheme.primary;
+        ctx.lineWidth = b.layerIdx === 2 ? 2 : 1.2;
+        ctx.globalAlpha = b.layerIdx === 0 ? 0.35 : 0.7;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        // Vertical Neon Strip Accent
+        if (b.layerIdx >= 1) {
+          const stripX = b.signSide === "left" ? b.x + 5 : b.x + b.w - 7;
+          ctx.fillStyle = b.neonTheme.primary;
+          ctx.shadowColor = b.neonTheme.primary;
+          ctx.shadowBlur = 10 + binEnergy * 12;
+          ctx.fillRect(stripX, topY + 12, 2.5, dynamicH - 20);
+          ctx.shadowBlur = 0;
+        }
+
+        // Lit Windows Grid
+        const padX = 12;
+        const padY = 22;
+        const cellW = (b.w - padX * 2) / b.cols;
+        const winW = Math.max(3, cellW * 0.52);
+        const winH = 6;
+
+        for (let r = 0; r < b.rows; r++) {
+          const wy = topY + padY + r * 16;
+          if (wy + winH > horizonY - 6) break;
+
+          const rowBeat =
+            binEnergy > 0.55 && r % 3 === Math.floor(frameTick / 8) % 3;
+
+          for (let c = 0; c < b.cols; c++) {
+            if (b.windowPattern[r][c]) {
+              const wx = b.x + padX + c * cellW;
+              if (rowBeat) {
+                ctx.fillStyle = "#ffffff";
+              } else {
+                ctx.fillStyle = b.neonTheme.primary;
+              }
+              ctx.globalAlpha =
+                b.layerIdx === 0
+                  ? 0.25
+                  : rowBeat
+                    ? 0.9
+                    : 0.45 + binEnergy * 0.35;
+              ctx.fillRect(wx, wy, winW, winH);
+            }
+          }
+        }
+        ctx.globalAlpha = 1;
+
+        // Rooftop Equalizer Crown
+        if (b.hasEqualizerCrown) {
+          const barCount = 5;
+          const barW = (b.w - 16) / barCount;
+          for (let i = 0; i < barCount; i++) {
+            const subBin = (b.freqBin + i * 3) % 64;
+            const val =
+              (isPlaying || isDemoPlaying) && frequencyData
+                ? frequencyData[subBin] / 255
+                : 0.15;
+            const barH = 4 + val * 36;
+            ctx.fillStyle = i % 2 === 0 ? "#00f3ff" : "#ff007f";
+            ctx.fillRect(
+              b.x + 8 + i * barW + 1,
+              topY - barH - 2,
+              barW - 3,
+              barH,
+            );
+          }
+        }
+
+        // Rooftop Spire & Blinking Red Aircraft Beacon
+        if (b.hasAntenna) {
+          const antX = b.x + b.w * 0.5;
+          ctx.strokeStyle = "rgba(180, 220, 255, 0.5)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(antX, topY);
+          ctx.lineTo(antX, topY - b.antennaH);
+          ctx.stroke();
+
+          const blink =
+            Math.sin(frameTick * 0.08 + b.pulsePhase) > 0 || bassForce > 0.75;
+          if (blink) {
+            ctx.fillStyle = "#ff1e56";
+            ctx.shadowColor = "#ff1e56";
+            ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.arc(antX, topY - b.antennaH, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+        }
+
+        // Vertical Cyberpunk Neon Hologram Billboard Sign
+        if (b.hasSign && dynamicH > 130) {
+          const signW = 22;
+          const signH = Math.min(115, dynamicH * 0.55);
+          const signX = b.signSide === "left" ? b.x - signW + 4 : b.x + b.w - 4;
+          const signY = topY + 28;
+
+          ctx.fillStyle = "rgba(8, 4, 20, 0.9)";
+          ctx.strokeStyle = b.neonTheme.primary;
+          ctx.lineWidth = 1.5;
+          ctx.shadowColor = b.neonTheme.primary;
+          ctx.shadowBlur = 10 + trebleForce * 14;
+          ctx.fillRect(signX, signY, signW, signH);
+          ctx.strokeRect(signX, signY, signW, signH);
+
+          ctx.fillStyle = "#ffffff";
+          ctx.font =
+            'bold 12px "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif';
+          ctx.textAlign = "center";
+          const chars = b.signText.split("");
+          chars.forEach((ch, idx) => {
+            const cy = signY + 16 + idx * 15;
+            if (cy < signY + signH - 6) {
+              ctx.fillText(ch, signX + signW / 2, cy);
+            }
+          });
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      function drawTraffic(layerFilter, speedMult, bassForce) {
+        trafficCars.forEach((car) => {
+          if (car.layer !== layerFilter) return;
+
+          car.x += car.speed * (0.4 + speedMult * 0.8 + bassForce * 0.6);
+          if (car.speed > 0 && car.x - car.length > canvas.width) {
+            car.x = -car.length;
+          } else if (car.speed < 0 && car.x + car.length < 0) {
+            car.x = canvas.width + car.length;
+          }
+
+          const grad = ctx.createLinearGradient(
+            car.x,
+            car.y,
+            car.x - car.speed * 10,
+            car.y,
+          );
+          grad.addColorStop(0, car.color);
+          grad.addColorStop(1, "rgba(0,0,0,0)");
+
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = car.layer === 0 ? 2 : 3.2;
+          ctx.beginPath();
+          ctx.moveTo(car.x, car.y);
+          ctx.lineTo(car.x + (car.speed > 0 ? -car.length : car.length), car.y);
+          ctx.stroke();
+
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(car.x - 1.5, car.y - 1.5, 3, 3);
+        });
+      }
+
+      function drawRain(horizonY, speedMult) {
+        ctx.strokeStyle = "rgba(140, 235, 255, 0.28)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        rainDrops.forEach((r) => {
+          r.y += r.speed * (0.7 + speedMult * 0.4);
+          r.x -= r.speed * 0.22;
+
+          if (r.y > horizonY) {
+            r.y = -20;
+            r.x = Math.random() * (canvas.width + 200);
+          }
+
+          ctx.moveTo(r.x, r.y);
+          ctx.lineTo(r.x + r.len * 0.22, r.y - r.len);
+        });
+        ctx.stroke();
+      }
+
+      function drawWetStreetReflection(horizonY, bassForce) {
+        const waterHeight = canvas.height - horizonY;
+
+        ctx.save();
+        ctx.translate(0, horizonY * 2);
+        ctx.scale(1, -1);
+        ctx.globalAlpha = 0.42;
+        ctx.drawImage(
+          canvas,
+          0,
+          horizonY - waterHeight,
+          canvas.width,
+          waterHeight,
+          0,
+          horizonY - waterHeight,
+          canvas.width,
+          waterHeight,
+        );
+        ctx.restore();
+
+        const waterGrad = ctx.createLinearGradient(
+          0,
+          horizonY,
+          0,
+          canvas.height,
+        );
+        waterGrad.addColorStop(0, "rgba(10, 4, 24, 0.45)");
+        waterGrad.addColorStop(0.5, "rgba(6, 2, 16, 0.78)");
+        waterGrad.addColorStop(1, "rgba(3, 1, 10, 0.94)");
+        ctx.fillStyle = waterGrad;
+        ctx.fillRect(0, horizonY, canvas.width, waterHeight);
+
+        const rippleCount = 28;
+        for (let i = 0; i < rippleCount; i++) {
+          const progress = i / rippleCount;
+          const ry = horizonY + Math.pow(progress, 1.45) * waterHeight;
+          const waveOffset =
+            Math.sin(frameTick * 0.06 + i * 1.3) * (12 + bassForce * 25);
+          const streakW = 80 + progress * 260 + bassForce * 60;
+          const rx = ((i * 197 + waveOffset) % (canvas.width + 200)) - 100;
+
+          ctx.fillStyle =
+            i % 2 === 0
+              ? `rgba(0, 243, 255, ${0.08 + bassForce * 0.12})`
+              : `rgba(255, 0, 127, ${0.08 + bassForce * 0.12})`;
+          ctx.fillRect(rx, ry, streakW, 1.5 + progress * 2.5);
+        }
+
+        ctx.strokeStyle = "#66fcf1";
+        ctx.shadowColor = "#66fcf1";
+        ctx.shadowBlur = 16 + bassForce * 15;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, horizonY);
+        ctx.lineTo(canvas.width, horizonY);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      function drawLofiVHSOddments() {
+        // 1. Subtle CRT Scanlines
+        ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+        for (let y = 0; y < canvas.height; y += 4) {
+          ctx.fillRect(0, y, canvas.width, 1.5);
+        }
+
+        // 2. Corner Vignette
+        const vignette = ctx.createRadialGradient(
+          canvas.width / 2,
+          canvas.height / 2,
+          canvas.width * 0.32,
+          canvas.width / 2,
+          canvas.height / 2,
+          canvas.width * 0.76,
+        );
+        vignette.addColorStop(0, "rgba(0,0,0,0)");
+        vignette.addColorStop(1, "rgba(0,0,0,0.62)");
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 3. Lofi VHS Camcorder HUD Overlay (Top Left & Top Right)
+        const pad = Math.max(28, canvas.width * 0.025);
+        const jpFont =
+          '"Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif';
+        ctx.save();
+        ctx.font = `bold ${Math.max(18, Math.floor(canvas.width * 0.015))}px ${jpFont}`;
+        ctx.textAlign = "left";
+
+        // Blinking REC dot
+        if (Math.floor(frameTick / 30) % 2 === 0) {
+          ctx.fillStyle = "#ff2a55";
+          ctx.beginPath();
+          ctx.arc(pad + 8, pad + 6, 7, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+        ctx.shadowColor = "rgba(0, 243, 255, 0.65)";
+        ctx.shadowBlur = 6;
+        ctx.fillText(
+          isRecording
+            ? "● 録画中 [最高画質]"
+            : isPlaying || isDemoPlaying
+              ? "▶ 再生中"
+              : "⏸ 一時停止",
+          pad + 24,
+          pad + 12,
+        );
+
+        // Track Title & Timecode
+        ctx.font = `600 ${Math.max(14, Math.floor(canvas.width * 0.011))}px ${jpFont}`;
+        ctx.fillStyle = "rgba(102, 252, 241, 0.9)";
+        ctx.fillText(`ネオ東京・深夜放送 // ${trackName}`, pad, pad + 40);
+
+        // Top-right VHS Mode & Timecode
+        const elapsedSec =
+          isPlaying && audioCtx
+            ? Math.max(0, audioCtx.currentTime - startTime)
+            : frameTick / 60;
+        const mins = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+        const secs = String(Math.floor(elapsedSec % 60)).padStart(2, "0");
+        const frames = String(Math.floor((elapsedSec % 1) * 30)).padStart(
+          2,
+          "0",
+        );
+
+        ctx.textAlign = "right";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
+        ctx.fillText(
+          `SPモード // 1988年11月  00:${mins}:${secs}:${frames}`,
+          canvas.width - pad,
+          pad + 12,
+        );
+        ctx.restore();
+      }
+
+      // ==========================================
+      // TIKTOK HOOK TEXT & SAFE-ZONE OVERLAY
+      // ==========================================
+      function drawTikTokOverlays(bassForce) {
+        const jpFont =
+          '"Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif';
+        const isVertical = canvas.height > canvas.width;
+
+        // 1. Custom Hook Title & @Handle (Burned into video)
+        const hookTitle = tiktokTitleInput.value.trim();
+        const handleText = tiktokHandleInput.value.trim();
+
+        if (hookTitle || handleText) {
+          ctx.save();
+          ctx.textAlign = "center";
+          const centerX = canvas.width * 0.5;
+          const topY = isVertical ? canvas.height * 0.16 : canvas.height * 0.14;
+
+          if (hookTitle) {
+            const titleSize = isVertical ? 54 : 42;
+            ctx.font = `900 ${titleSize}px ${jpFont}`;
+            ctx.shadowColor = "#ff007f";
+            ctx.shadowBlur = 18 + bassForce * 22;
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(hookTitle, centerX, topY);
+
+            // Subtle cyan secondary edge glow
+            ctx.shadowColor = "#00f3ff";
+            ctx.shadowBlur = 8;
+            ctx.fillText(hookTitle, centerX, topY);
+          }
+
+          if (handleText) {
+            const handleSize = isVertical ? 30 : 24;
+            ctx.font = `700 ${handleSize}px ${jpFont}`;
+            ctx.shadowColor = "#00f3ff";
+            ctx.shadowBlur = 12;
+            ctx.fillStyle = "rgba(102, 252, 241, 0.92)";
+            ctx.fillText(
+              handleText,
+              centerX,
+              topY + (hookTitle ? (isVertical ? 56 : 44) : 0),
+            );
+          }
+          ctx.restore();
+        }
+
+        // 2. TikTok UI Safe-Zone Guide (Preview only — hidden during .MOV recording)
+        if (tiktokSafezoneCheckbox.checked && !isRecording) {
+          ctx.save();
+          const rightMargin = Math.floor(canvas.width * 0.14);
+          const bottomMargin = Math.floor(canvas.height * 0.18);
+          const topMargin = Math.floor(canvas.height * 0.11);
+
+          // Safe area dashed border
+          ctx.strokeStyle = "rgba(255, 0, 127, 0.75)";
+          ctx.lineWidth = 3;
+          ctx.setLineDash([14, 10]);
+          ctx.strokeRect(
+            24,
+            topMargin,
+            canvas.width - rightMargin - 24,
+            canvas.height - topMargin - bottomMargin,
+          );
+          ctx.setLineDash([]);
+
+          // Shaded TikTok UI obstruction zones
+          ctx.fillStyle = "rgba(255, 0, 80, 0.16)";
+          // Right-hand engagement buttons zone (Like, Comment, Bookmark, Share, Vinyl)
+          ctx.fillRect(
+            canvas.width - rightMargin,
+            canvas.height * 0.42,
+            rightMargin,
+            canvas.height * 0.42,
+          );
+          // Bottom caption & audio marquee zone
+          ctx.fillRect(
+            0,
+            canvas.height - bottomMargin,
+            canvas.width,
+            bottomMargin,
+          );
+
+          // Label indicators
+          ctx.fillStyle = "#ff66b2";
+          ctx.font = `bold ${isVertical ? 24 : 18}px ${jpFont}`;
+          ctx.textAlign = "left";
+          ctx.fillText(
+            "▲ TikTok セーフゾーン枠 (録画時は非表示)",
+            36,
+            topMargin + 36,
+          );
+          ctx.fillText(
+            "▼ TikTok キャプション・楽曲バー領域",
+            36,
+            canvas.height - bottomMargin + 42,
+          );
+
+          // Simulated right-side icon circles
+          const iconX = canvas.width - rightMargin / 2;
+          const iconStartY = canvas.height * 0.48;
+          const iconGap = isVertical ? 110 : 65;
+          const iconLabels = ["♥", "💬", "🔖", "↗", "💿"];
+          ctx.textAlign = "center";
+          iconLabels.forEach((ic, idx) => {
+            const iy = iconStartY + idx * iconGap;
+            ctx.beginPath();
+            ctx.arc(iconX, iy, isVertical ? 32 : 20, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(ic, iconX, iy + (isVertical ? 9 : 6));
+          });
+
+          ctx.restore();
+        }
+      }
+
+      // ==========================================
+      // MAIN ANIMATION LOOP
+      // ==========================================
+      function animate() {
+        frameTick++;
+
+        let bassValue = 0;
+        let trebleValue = 0;
+
+        if ((isPlaying || isDemoPlaying) && analyser) {
+          analyser.getByteFrequencyData(frequencyData);
+
+          let bassSum = 0;
+          for (let i = 0; i < 10; i++) {
+            bassSum += frequencyData[i];
+          }
+          bassValue = bassSum / 10 / 255;
+
+          let trebleSum = 0;
+          for (let i = 36; i < 96; i++) {
+            trebleSum += frequencyData[i];
+          }
+          trebleValue = trebleSum / 60 / 255;
+        }
+
+        const sensitivity = parseFloat(sensitivityInput.value);
+        const speedMultiplier = parseFloat(speedInput.value);
+        const bassForce = bassValue * sensitivity;
+        const horizonY = Math.floor(canvas.height * 0.74);
+
+        // 1. Sky, Twinkling Stars & Reactive Synthwave Moon
+        drawSkyAndMoon(bassForce, trebleValue, horizonY);
+
+        // 2. Parallax Cyberpunk City Layers (0 = Far, 1 = Mid, 2 = Foreground)
+        const layerSpeeds = [0.22, 0.55, 1.05];
+        for (let layer = 0; layer < 3; layer++) {
+          const buildings = cityLayers[layer];
+          const moveSpeed = layerSpeeds[layer] * speedMultiplier;
+
+          let maxRight = 0;
+          for (let i = 0; i < buildings.length; i++) {
+            const rightEdge = buildings[i].x + buildings[i].w;
+            if (rightEdge > maxRight) maxRight = rightEdge;
+          }
+
+          for (let i = 0; i < buildings.length; i++) {
+            const b = buildings[i];
+            b.x -= moveSpeed;
+
+            if (b.x + b.w < -120) {
+              const gap = layer === 0 ? -12 : layer === 1 ? 6 : 18;
+              b.x = maxRight + gap;
+              maxRight = b.x + b.w;
+            }
+
+            drawBuilding(b, horizonY, bassForce, trebleValue);
+          }
+
+          if (layer === 0) {
+            drawFogLayer(horizonY, speedMultiplier);
+            drawTraffic(0, speedMultiplier, bassForce);
+          } else if (layer === 1) {
+            drawTraffic(1, speedMultiplier, bassForce);
+          }
+        }
+
+        // 3. Lofi Diagonal Rain
+        drawRain(horizonY, speedMultiplier);
+
+        // 4. Wet Reflective Street / Waterfront Mirror
+        drawWetStreetReflection(horizonY, bassForce);
+
+        // 5. CRT Scanlines & VHS HUD Overlay
+        drawLofiVHSOddments();
+
+        // 6. TikTok Hook Text & Safe-Zone Overlay
+        drawTikTokOverlays(bassForce);
+
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+    </script>
+  </body>
+</html>
